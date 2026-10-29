@@ -14,6 +14,7 @@ import { autoTarget, SEARCH_APPS } from '../src/tv/apps';
 import { TvController } from '../src/tv/TvController';
 import { brandTests, brandTests2, brandTests3 } from './tests/brands';
 import { netTests } from './tests/net';
+import { resilienceTests } from './tests/resilience';
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -253,6 +254,7 @@ async function main() {
   await brandTests(asyncTest);
   await brandTests2(asyncTest);
   await brandTests3(asyncTest);
+  await resilienceTests(asyncTest);
   console.log(`\n${passed} tests passed`);
   process.exit(0);
 }

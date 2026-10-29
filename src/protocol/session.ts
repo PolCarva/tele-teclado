@@ -102,46 +102,47 @@ export class RemoteSession {
     if (messages.length) this.resetSilenceTimer();
     for (const raw of messages) {
       this.gotAnyMessage = true;
-      let msg;
       try {
-        msg = parseRemote(raw);
+        const msg = parseRemote(raw);
+        if (msg.kind !== 'ping') this.events.onDebug?.(`<- ${JSON.stringify(msg)}`);
+        switch (msg.kind) {
+          case 'configure':
+            this.features = OUR_FEATURES & (msg.features || OUR_FEATURES);
+            if (!(this.features & Feature.IME)) this.events.onDebug?.('TV did not grant IME');
+            this.send(remote.configure(this.features));
+            break;
+          case 'set_active':
+            this.send(remote.setActive(this.features));
+            // Some TVs don't send remote_start; be ready shortly after anyway.
+            this.readyTimer = setTimeout(() => this.markReady(), 400);
+            break;
+          case 'start':
+            this.markReady();
+            break;
+          case 'ping':
+            this.send(remote.pingResponse(msg.val1));
+            break;
+          case 'ime_key_inject':
+            if (msg.appPackage && msg.appPackage !== this.currentApp) {
+              this.currentApp = msg.appPackage;
+              this.events.onApp?.(msg.appPackage);
+            }
+            if (msg.field) this.events.onTextField?.(msg.field);
+            break;
+          case 'ime_batch_edit':
+            this.imeCounter = msg.imeCounter;
+            this.fieldCounter = msg.fieldCounter;
+            break;
+          case 'ime_show_request':
+            this.events.onTextField?.(msg.field);
+            break;
+          default:
+            break;
+        }
       } catch {
+        // A malformed or out-of-range message (e.g. a ping with an oversized varint, which would
+        // throw while building the response) must not take down the socket callback.
         continue;
-      }
-      if (msg.kind !== 'ping') this.events.onDebug?.(`<- ${JSON.stringify(msg)}`);
-      switch (msg.kind) {
-        case 'configure':
-          this.features = OUR_FEATURES & (msg.features || OUR_FEATURES);
-          if (!(this.features & Feature.IME)) this.events.onDebug?.('TV did not grant IME');
-          this.send(remote.configure(this.features));
-          break;
-        case 'set_active':
-          this.send(remote.setActive(this.features));
-          // Some TVs don't send remote_start; be ready shortly after anyway.
-          this.readyTimer = setTimeout(() => this.markReady(), 400);
-          break;
-        case 'start':
-          this.markReady();
-          break;
-        case 'ping':
-          this.send(remote.pingResponse(msg.val1));
-          break;
-        case 'ime_key_inject':
-          if (msg.appPackage && msg.appPackage !== this.currentApp) {
-            this.currentApp = msg.appPackage;
-            this.events.onApp?.(msg.appPackage);
-          }
-          if (msg.field) this.events.onTextField?.(msg.field);
-          break;
-        case 'ime_batch_edit':
-          this.imeCounter = msg.imeCounter;
-          this.fieldCounter = msg.fieldCounter;
-          break;
-        case 'ime_show_request':
-          this.events.onTextField?.(msg.field);
-          break;
-        default:
-          break;
       }
     }
   }

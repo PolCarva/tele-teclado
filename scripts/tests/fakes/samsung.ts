@@ -8,9 +8,9 @@ import { WebSocketServer, type WebSocket } from 'ws';
 
 import { selfSignedCert } from '../net';
 
-export async function fakeSamsung(options: { token?: boolean; requirePrompt?: boolean; name?: string } = {}) {
+export async function fakeSamsung(options: { token?: boolean; requirePrompt?: boolean; holdPrompt?: boolean; name?: string } = {}) {
   const token = options.token ?? true;
-  const state = { field: '', keyboardOpen: false, inputEnds: 0, keys: [] as string[], paired: !options.requirePrompt, lastText: '' };
+  const state = { field: '', keyboardOpen: false, inputEnds: 0, keys: [] as string[], paired: !options.requirePrompt, lastText: '', openSockets: 0 };
   const clients = new Set<WebSocket>();
 
   const handler = (req: http.IncomingMessage, res: http.ServerResponse) => {
@@ -30,6 +30,7 @@ export async function fakeSamsung(options: { token?: boolean; requirePrompt?: bo
   const wss = new WebSocketServer({ server });
   wss.on('connection', (ws, req) => {
     clients.add(ws);
+    state.openSockets++;
     const url = new URL(req.url ?? '/', 'http://x');
     // Token TVs: if the client sent no token and we require a prompt, grant one after a beat.
     const sentToken = url.searchParams.get('token');
@@ -37,7 +38,8 @@ export async function fakeSamsung(options: { token?: boolean; requirePrompt?: bo
       if (token && !sentToken && !state.paired) state.paired = true;
       ws.send(JSON.stringify({ event: 'ms.channel.connect', data: { id: 'client-1', token: token ? '85418879' : undefined } }));
     };
-    setTimeout(grant, 20);
+    // holdPrompt: leave the Allow prompt on screen (never answer), as if the user hasn't pressed it.
+    if (!options.holdPrompt) setTimeout(grant, 20);
     ws.on('message', (raw) => {
       let msg: { method?: string; params?: Record<string, unknown> };
       try {
@@ -58,7 +60,10 @@ export async function fakeSamsung(options: { token?: boolean; requirePrompt?: bo
         state.keys.push(String(p.DataOfCmd));
       }
     });
-    ws.on('close', () => clients.delete(ws));
+    ws.on('close', () => {
+      clients.delete(ws);
+      state.openSockets--;
+    });
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   return {

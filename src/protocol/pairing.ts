@@ -127,8 +127,23 @@ export class PairingSession {
   }
 
   private onData(data: Uint8Array) {
-    for (const raw of this.deframer.push(data)) {
-      const msg = parsePolo(raw);
+    let frames: Uint8Array[];
+    try {
+      frames = this.deframer.push(data);
+    } catch {
+      // A corrupt byte stream from the TV must not crash the socket callback: end the pairing.
+      this.settle(new PairingError('La tele mandó datos inválidos.', 'closed'));
+      this.cancel();
+      return;
+    }
+    for (const raw of frames) {
+      let msg;
+      try {
+        msg = parsePolo(raw);
+      } catch {
+        // Skip a single malformed message instead of throwing; the step timeout still guards us.
+        continue;
+      }
       if (msg.status !== POLO_STATUS_OK) {
         this.settle(new PairingError(`La tele rechazó la vinculación (${msg.status}).`, 'rejected'));
         this.cancel();

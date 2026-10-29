@@ -147,7 +147,11 @@ function safeB64Text(data: string): string | undefined {
   }
 }
 
-/** Opens the socket and waits for ms.channel.connect (or the Allow prompt to be answered). */
+/**
+ * Opens the socket and waits for ms.channel.connect (or the Allow prompt to be answered).
+ * `onAbort` hands the caller a function that closes the socket and rejects right away, so a
+ * cancelled pairing doesn't leave the WebSocket open and the (up to 60s) timer armed.
+ */
 function openChannel(
   transport: Transport,
   tv: TvInfo,
@@ -156,56 +160,89 @@ function openChannel(
   onEvent: (raw: string | Uint8Array) => void,
   events: SessionEvents,
   waitMs: number,
+  onAbort?: (abort: () => void) => void,
 ): Promise<{ ws: WebSocketClient; token: string | null }> {
-  return new Promise(async (resolve, reject) => {
-    let ws: WebSocketClient;
-    try {
-      ws = await WebSocketClient.connect(transport, socketUrl(tv, name, token), { timeoutMs: 6000 });
-    } catch (e) {
-      return reject(e);
-    }
+  return new Promise((resolve, reject) => {
+    let ws: WebSocketClient | null = null;
     let settled = false;
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        ws.close();
-        reject(new PairingError('No hubo respuesta en la tele', 'timeout'));
+    let aborted = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const abort = () => {
+      if (settled) return;
+      settled = true;
+      aborted = true;
+      if (timer) clearTimeout(timer);
+      try {
+        ws?.close();
+      } catch {
+        // closing anyway
       }
-    }, waitMs);
-    ws.setHandlers(
-      (raw) => {
-        let message: { event?: string; data?: { token?: string | number } };
-        try {
-          message = JSON.parse(typeof raw === 'string' ? raw : utf8Decode(raw));
-        } catch {
-          return;
-        }
-        if (!settled) {
-          if (message.event === 'ms.channel.connect') {
-            settled = true;
-            clearTimeout(timer);
-            const newToken = message.data?.token != null ? String(message.data.token) : token;
-            resolve({ ws, token: newToken });
-          } else if (message.event === 'ms.channel.unauthorized' || message.event === 'ms.channel.timeOut') {
-            settled = true;
-            clearTimeout(timer);
-            ws.close();
-            reject(new PairingError('La tele no dio permiso', message.event === 'ms.channel.timeOut' ? 'timeout' : 'rejected'));
-          }
-        } else {
-          onEvent(raw);
-        }
-      },
-      (error) => {
+      reject(new PairingError('Se canceló', 'closed'));
+    };
+    onAbort?.(abort);
+    void (async () => {
+      let socket: WebSocketClient;
+      try {
+        socket = await WebSocketClient.connect(transport, socketUrl(tv, name, token), { timeoutMs: 6000 });
+      } catch (e) {
         if (!settled) {
           settled = true;
-          clearTimeout(timer);
-          reject(new PairingError(error ?? 'La conexión se cerró', 'closed'));
-        } else {
-          events.onClose('network', error);
+          reject(e as Error);
         }
-      },
-    );
+        return;
+      }
+      ws = socket;
+      if (aborted) {
+        // cancel() fired while the socket was still connecting: drop it now instead of lingering.
+        try {
+          socket.close();
+        } catch {
+          // closing anyway
+        }
+        return;
+      }
+      timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          socket.close();
+          reject(new PairingError('No hubo respuesta en la tele', 'timeout'));
+        }
+      }, waitMs);
+      socket.setHandlers(
+        (raw) => {
+          let message: { event?: string; data?: { token?: string | number } };
+          try {
+            message = JSON.parse(typeof raw === 'string' ? raw : utf8Decode(raw));
+          } catch {
+            return;
+          }
+          if (!settled) {
+            if (message.event === 'ms.channel.connect') {
+              settled = true;
+              if (timer) clearTimeout(timer);
+              const newToken = message.data?.token != null ? String(message.data.token) : token;
+              resolve({ ws: socket, token: newToken });
+            } else if (message.event === 'ms.channel.unauthorized' || message.event === 'ms.channel.timeOut') {
+              settled = true;
+              if (timer) clearTimeout(timer);
+              socket.close();
+              reject(new PairingError('La tele no dio permiso', message.event === 'ms.channel.timeOut' ? 'timeout' : 'rejected'));
+            }
+          } else {
+            onEvent(raw);
+          }
+        },
+        (error) => {
+          if (!settled) {
+            settled = true;
+            if (timer) clearTimeout(timer);
+            reject(new PairingError(error ?? 'La conexión se cerró', 'closed'));
+          } else {
+            events.onClose('network', error);
+          }
+        },
+      );
+    })();
   });
 }
 
@@ -267,8 +304,12 @@ export const samsung: Driver = {
   async startPairing(tv, ctx): Promise<PairingFlow> {
     // Samsung has no code: opening the socket makes the TV show an Allow prompt.
     let cancelled = false;
+    let abort: (() => void) | null = null;
     const accepted = (async (): Promise<Credentials> => {
-      const channel = await openChannel(ctx.transport, tv, ctx.clientName, null, () => {}, { onClose: () => {} }, 60_000);
+      const channel = await openChannel(ctx.transport, tv, ctx.clientName, null, () => {}, { onClose: () => {} }, 60_000, (fn) => {
+        abort = fn;
+        if (cancelled) fn();
+      });
       channel.ws.close();
       if (cancelled) throw new PairingError('Se canceló', 'closed');
       if (!channel.token) throw new PairingError('La tele no dio un token', 'rejected');
@@ -283,7 +324,9 @@ export const samsung: Driver = {
       },
       accepted,
       cancel() {
+        // Close the in-flight socket and clear its 60s timer now, rather than leaving both alive.
         cancelled = true;
+        abort?.();
       },
       onClose() {
         // No separate close signal: the accepted promise rejects on timeout.

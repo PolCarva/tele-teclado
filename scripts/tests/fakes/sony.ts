@@ -3,8 +3,8 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-export async function fakeSony(options: { pin?: string; name?: string } = {}) {
-  const state = { field: '', keyboardOn: false, ircc: [] as string[], cookie: null as string | null, pinsShown: 0 };
+export async function fakeSony(options: { pin?: string; name?: string; cookie?: string } = {}) {
+  const state = { field: '', keyboardOn: false, ircc: [] as string[], cookie: options.cookie ?? (null as string | null), pinsShown: 0 };
   const pin = options.pin ?? '1234';
   const authOk = (req: http.IncomingMessage) => !!state.cookie && (req.headers.cookie ?? '').includes(`auth=${state.cookie}`);
   const rpc = (res: http.ServerResponse, result: unknown[], id = 2) => {

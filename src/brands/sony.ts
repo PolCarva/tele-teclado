@@ -149,6 +149,9 @@ class SonySession implements TvSession {
   private poll: ReturnType<typeof setInterval> | null = null;
   private keyboardOn = false;
   private queue: Promise<unknown> = Promise.resolve();
+  /** Consecutive failed polls, and an in-flight guard so a slow/dead TV can't stack sockets. */
+  private failures = 0;
+  private polling = false;
 
   constructor(
     private transport: Transport,
@@ -162,19 +165,31 @@ class SonySession implements TvSession {
   }
 
   private async checkKeyboard() {
-    if (this.closed) return;
+    // Skip if a previous poll is still in flight: each rpc can take up to its 5s timeout, and the
+    // interval fires every 1.5s, so without this guard a silent TV stacks overlapping sockets.
+    if (this.closed || this.polling) return;
+    this.polling = true;
     try {
       const result = (await rpc(this.transport, this.tv, 'appControl', 'getApplicationStatusList', [], this.auth)) as [{ name: string; status: string }[]];
+      this.failures = 0;
       const on = (result[0] ?? []).some((s) => s.name === 'textInput' && s.status === 'on');
       if (on !== this.keyboardOn) {
         this.keyboardOn = on;
         this.events.onKeyboard?.({ visible: on });
       }
     } catch (e) {
-      if (e instanceof PairingRequired && !this.closed) {
+      if (this.closed) return;
+      if (e instanceof PairingRequired) {
         this.close();
         this.events.onClose('needs_pairing');
+      } else if (++this.failures >= 3) {
+        // The TV answered once but has now gone quiet (powered off / off the Wi-Fi): report the
+        // loss so the controller reconnects, instead of polling a dead session forever.
+        this.close();
+        this.events.onClose('network');
       }
+    } finally {
+      this.polling = false;
     }
   }
 

@@ -62,14 +62,27 @@ class SsapSocket {
   onClose: (error: string | null) => void = () => {};
   /** Set during registration: sees every frame so it can tell "prompt shown" from "registered". */
   private registerListener: ((message: { type?: string; payload?: Record<string, unknown>; error?: string }) => void) | null = null;
+  /** Rejects an in-flight register() when the socket closes, instead of waiting out its timer. */
+  private registerReject: ((e: Error) => void) | null = null;
   private helloListener: ((payload: Record<string, unknown>) => void) | null = null;
 
   constructor(ws: WebSocketClient) {
     this.ws = ws;
     ws.setHandlers(
       (raw) => this.onMessage(raw),
-      (error) => this.onClose(error),
+      (error) => this.handleClose(error),
     );
+  }
+
+  /** The socket closed: fail everything in flight so callers don't sit on their own timeouts. */
+  private handleClose(error: string | null) {
+    for (const waiter of this.waiting.values()) {
+      clearTimeout(waiter.timer);
+      waiter.reject(new Error(error ?? 'La tele cerró la conexión'));
+    }
+    this.waiting.clear();
+    this.registerReject?.(new PairingError(error ?? 'La tele cerró la conexión', 'closed'));
+    this.onClose(error);
   }
 
   private onMessage(raw: string | Uint8Array) {
@@ -156,27 +169,39 @@ class SsapSocket {
   register(payload: Record<string, unknown>, onPrompt: () => void, timeoutMs: number): Promise<string> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.registerListener = null;
+        this.clearRegister();
         reject(new PairingError('No hubo respuesta en la tele', 'timeout'));
       }, timeoutMs);
+      const done = () => {
+        clearTimeout(timer);
+        this.clearRegister();
+      };
+      // handleClose uses this to fail pairing the moment the TV drops the socket.
+      this.registerReject = (e) => {
+        done();
+        reject(e);
+      };
       this.registerListener = (message) => {
         if (message.type === 'registered') {
           const key = (message.payload?.['client-key'] as string) || '';
           if (key) {
-            this.registerListener = null;
-            clearTimeout(timer);
+            done();
             resolve(key);
           }
         } else if (message.type === 'response' && (message.payload?.pairingType || message.payload?.returnValue)) {
           onPrompt();
         } else if (message.type === 'error') {
-          this.registerListener = null;
-          clearTimeout(timer);
+          done();
           reject(new SsapError(message.error || 'register failed', message.payload ?? {}));
         }
       };
       this.send({ id: 'register_0', type: 'register', payload });
     });
+  }
+
+  private clearRegister() {
+    this.registerListener = null;
+    this.registerReject = null;
   }
 
   close() {

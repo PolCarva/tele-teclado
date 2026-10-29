@@ -27,6 +27,13 @@ const CLIENT_NAME = 'Teclado TV';
 const IDLE_DISCONNECT_MS = 3 * 60_000;
 /** After this long in the background, start with an empty box. */
 const FORGET_TEXT_AFTER_MS = 60_000;
+/**
+ * Backstop: a connect attempt that neither settles nor shows a pairing prompt by now is treated as
+ * a lost connection and retried. Every connector bounds its own connect (the longest legitimate
+ * non-pairing one is ~10s), so this only ever fires if a connector wedges — it never cuts a real
+ * accept-prompt pairing short, which surfaces through state.pairing and takes up to a minute.
+ */
+const CONNECT_WATCHDOG_MS = 20_000;
 
 export const DEFAULT_TIMING = {
   /** Wait after connecting before typing. Undefined: what the brand's connector asks for. */
@@ -47,6 +54,8 @@ export const DEFAULT_TIMING = {
 
 export type Timing = {
   warmUpMs?: number;
+  /** Override the connect watchdog (tests use a short one). Defaults to CONNECT_WATCHDOG_MS. */
+  connectWatchdogMs?: number;
   searchScreen: typeof DEFAULT_TIMING.searchScreen;
 };
 
@@ -138,6 +147,7 @@ export class TvController {
   private warmTimer: ReturnType<typeof setTimeout> | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectWatchdog: ReturnType<typeof setTimeout> | null = null;
   private afterOpen: { app: SearchApp; text: string } | null = null;
   private afterOpenTimers: ReturnType<typeof setTimeout>[] = [];
   /** Set while an app we opened is coming to the front, so the text box isn't cleared. */
@@ -427,6 +437,7 @@ export class TvController {
     this.retryTimer = null;
     this.opening = true;
     const attempt = ++this.attempt;
+    this.armConnectWatchdog(attempt);
     let session: TvSession | null = null;
     try {
       const target = driver.refine ? await driver.refine(tv, this.ctx).catch(() => tv) : tv;
@@ -458,14 +469,19 @@ export class TvController {
       session = result.session;
       if (attempt !== this.attempt || !this.active) {
         // An older attempt (or the app went to the background): drop it.
-        if (attempt === this.attempt) this.opening = false;
+        if (attempt === this.attempt) {
+          this.opening = false;
+          this.clearConnectWatchdog();
+        }
         session.close();
         return;
       }
+      this.clearConnectWatchdog();
       this.saveCredentials(result.saved);
     } catch (e) {
       if (attempt !== this.attempt) return;
       this.opening = false;
+      this.clearConnectWatchdog();
       if (e instanceof PairingRequired) return this.onLost('needs_pairing');
       if (e instanceof TvSetupNeeded) {
         // The TV answered but won't take commands until the user changes a setting: keep checking.
@@ -474,7 +490,14 @@ export class TvController {
         return;
       }
       if (e instanceof PairingError) {
-        // The user said no on the TV (or the prompt timed out).
+        // Reconnecting to an already-paired TV (credentials saved, no pairing in progress) can time
+        // out or drop for a transient reason — the TV just woke, is busy, briefly off the Wi-Fi.
+        // That's a lost connection, not a pairing failure: retry with backoff instead of parking on
+        // a "failed" screen that wrongly implies the phone has to be paired again.
+        if ((e.code === 'timeout' || e.code === 'closed') && this.state.pairing == null && this.loadCredentials() != null) {
+          return this.onLost('network');
+        }
+        // The user said no on the TV (or the prompt timed out during an actual pairing).
         const prompt = this.state.pairing?.prompt ?? null;
         this.update({
           pairing: {
@@ -515,6 +538,10 @@ export class TvController {
     this.canSend = false;
     if (this.warmTimer) clearTimeout(this.warmTimer);
     this.warmTimer = null;
+    // Idle-disconnect only makes sense for a live session. Leaving it armed through an outage lets it
+    // fire mid-reconnect, flip the UI to a misleading "idle", and (by bumping attempt) stop retrying.
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = null;
     // The TV field no longer holds what we typed (new connection, maybe a new field).
     this.tvText = '';
     if (this.state.tvKeyboard !== null) this.update({ tvKeyboard: null });
@@ -749,18 +776,39 @@ export class TvController {
     this.connect();
   }
 
+  /** Arms a backstop so a connector whose connect() never settles can't wedge the app in "connecting". */
+  private armConnectWatchdog(attempt: number) {
+    if (this.connectWatchdog) clearTimeout(this.connectWatchdog);
+    this.connectWatchdog = setTimeout(() => {
+      this.connectWatchdog = null;
+      // Only act if this is still the pending attempt, still opening, and not in a pairing wait
+      // (an accept prompt legitimately takes up to a minute and shows through state.pairing).
+      if (attempt !== this.attempt || !this.opening || this.state.pairing != null) return;
+      // Invalidate the stuck attempt so its eventual late settle is ignored, then retry.
+      this.attempt++;
+      this.opening = false;
+      this.onLost('network');
+    }, this.timing.connectWatchdogMs ?? CONNECT_WATCHDOG_MS);
+  }
+
+  private clearConnectWatchdog() {
+    if (this.connectWatchdog) clearTimeout(this.connectWatchdog);
+    this.connectWatchdog = null;
+  }
+
   private closeSession() {
     const session = this.session;
     this.session = null;
     this.canSend = false;
     this.attempt++;
     this.opening = false;
+    this.clearConnectWatchdog();
     session?.close();
   }
 
   private clearTimers() {
-    for (const timer of [this.warmTimer, this.retryTimer, this.idleTimer]) if (timer) clearTimeout(timer);
-    this.warmTimer = this.retryTimer = this.idleTimer = null;
+    for (const timer of [this.warmTimer, this.retryTimer, this.idleTimer, this.connectWatchdog]) if (timer) clearTimeout(timer);
+    this.warmTimer = this.retryTimer = this.idleTimer = this.connectWatchdog = null;
     this.cancelAfterOpen();
   }
 }

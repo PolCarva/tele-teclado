@@ -6,7 +6,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 
 import { selfSignedCert } from '../net';
 
-export async function fakeLg(options: { knownKey?: string; name?: string } = {}) {
+export async function fakeLg(options: { knownKey?: string; name?: string; dropOnRegister?: boolean } = {}) {
   const state = { field: '', entered: 0, focus: false, registeredKey: options.knownKey ?? null as string | null, pointerFrames: [] as string[] };
   const server = https.createServer(selfSignedCert());
   const wss = new WebSocketServer({ server, handleProtocols: () => false });
@@ -51,6 +51,11 @@ export async function fakeLg(options: { knownKey?: string; name?: string } = {})
         return;
       }
       if (msg.type === 'register') {
+        if (options.dropOnRegister) {
+          // Simulate the TV dropping the socket mid-registration (reboot, declined, flaky link).
+          ws.close();
+          return;
+        }
         const sent = msg.payload?.['client-key'];
         if (sent && sent === state.registeredKey) {
           ws.send(JSON.stringify({ type: 'registered', id, payload: { 'client-key': state.registeredKey } }));

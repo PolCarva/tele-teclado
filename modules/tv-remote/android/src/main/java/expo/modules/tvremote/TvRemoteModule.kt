@@ -105,11 +105,26 @@ class TvRemoteModule : Module() {
     }
 
     AsyncFunction("ssdp") { targets: List<String>, hosts: List<String>, timeoutMs: Int, promise: Promise ->
-      thread(name = "tv-remote-ssdp") { promise.resolve(LanTools.ssdp(context, targets, hosts, timeoutMs)) }
+      thread(name = "tv-remote-ssdp") {
+        try {
+          promise.resolve(LanTools.ssdp(context, targets, hosts, timeoutMs))
+        } catch (e: Exception) {
+          // Always settle the promise (a failure here is rare and local, not the TV): JS turns a
+          // rejection into an empty result. Without this an exception would hang discovery and
+          // crash uncaught on this background thread.
+          promise.reject("ERR_SSDP", e.message ?: "ssdp error", e)
+        }
+      }
     }
 
     AsyncFunction("probe") { hosts: List<String>, ports: List<Int>, timeoutMs: Int, concurrency: Int, promise: Promise ->
-      thread(name = "tv-remote-probe") { promise.resolve(LanTools.probe(hosts, ports, timeoutMs, concurrency)) }
+      thread(name = "tv-remote-probe") {
+        try {
+          promise.resolve(LanTools.probe(hosts, ports, timeoutMs, concurrency))
+        } catch (e: Exception) {
+          promise.reject("ERR_PROBE", e.message ?: "probe error", e)
+        }
+      }
     }
 
     AsyncFunction("networkInfo") { promise: Promise ->
