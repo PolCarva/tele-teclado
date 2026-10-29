@@ -31,7 +31,8 @@
     "tv:proxy": "tsx scripts/tv-proxy.ts",
     "build:android": "scripts/build-android.sh",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "realtv": "tsx scripts/realtv.ts"
   },
   "private": true
 }
