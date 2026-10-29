@@ -17,10 +17,17 @@ export function TypingView({ state }: { state: TvState }) {
   const [picking, setPicking] = useState(false);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
 
+  const [remoteToken, setRemoteToken] = useState(state.remoteText?.token ?? 0);
+
   // The controller asks to empty the box (search sent, TV changed app…).
   if (clearToken !== state.clearToken) {
     setClearToken(state.clearToken);
     setText('');
+  }
+  // The TV field already has text (its keyboard just opened): continue from there.
+  if (state.remoteText && remoteToken !== state.remoteText.token) {
+    setRemoteToken(state.remoteText.token);
+    setText(state.remoteText.text);
   }
 
   // Keep the keyboard up: open the app and type.
@@ -59,7 +66,7 @@ export function TypingView({ state }: { state: TvState }) {
           onBlur={() => setFocused(false)}
           placeholder="¿Qué querés buscar?"
           placeholderTextColor={colors.faint}
-          returnKeyType="search"
+          returnKeyType={state.compose ? 'send' : state.appLinks ? 'search' : 'done'}
           submitBehavior="submit"
           onSubmitEditing={submit}
           autoFocus
@@ -84,39 +91,60 @@ export function TypingView({ state }: { state: TvState }) {
       </View>
 
       <View style={styles.actions}>
-        <Pressable
-          onPress={() => setPicking(true)}
-          style={({ pressed }) => [styles.appChip, pressed && styles.pressed]}
-          accessibilityRole="button"
-          accessibilityLabel={`Buscar en ${targetName(target)}. Tocá para cambiar.`}
-        >
-          <AppIcon id={target} size={34} />
-          <View style={styles.appChipText}>
-            <Text style={styles.caption} numberOfLines={1}>
-              {openOnTv ? 'En la tele' : 'Buscar en'}
-            </Text>
-            <Text style={styles.appName} numberOfLines={1}>
-              {targetName(target)}
-            </Text>
-          </View>
-          <Icon name="chevronDown" size={20} color={colors.muted} />
-        </Pressable>
-
-        <Pressable
-          onPress={submit}
-          style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
-          accessibilityRole="button"
-          accessibilityLabel={submitLabel(state)}
-        >
-          <Icon name={target === 'enter' ? 'keyboardReturn' : 'search'} size={20} color={colors.onFocus} />
-          <Text style={styles.primaryText}>{submitLabel(state)}</Text>
-        </Pressable>
+        {state.appLinks ? (
+          <Pressable
+            onPress={() => setPicking(true)}
+            style={({ pressed }) => [styles.appChip, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`Buscar en ${targetName(target)}. Tocá para cambiar.`}
+          >
+            <AppIcon id={target} size={34} />
+            <View style={styles.appChipText}>
+              <Text style={styles.caption} numberOfLines={1}>
+                {openOnTv ? 'En la tele' : 'Buscar en'}
+              </Text>
+              <Text style={styles.appName} numberOfLines={1}>
+                {targetName(target)}
+              </Text>
+            </View>
+            <Icon name="chevronDown" size={20} color={colors.muted} />
+          </Pressable>
+        ) : null}
+        {state.appLinks || state.compose || state.canSubmit ? (
+          <Pressable
+            onPress={submit}
+            style={({ pressed }) => [styles.primary, !state.appLinks && styles.primaryWide, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel={submitLabel(state)}
+          >
+            <Icon
+              name={state.compose ? 'send' : target === 'enter' || !state.appLinks ? 'keyboardReturn' : 'search'}
+              size={20}
+              color={colors.onFocus}
+            />
+            <Text style={styles.primaryText}>{submitLabel(state)}</Text>
+          </Pressable>
+        ) : null}
+        {state.compose && state.canSubmit ? (
+          <Pressable
+            onPress={() => {
+              tv.pressEnter();
+              input.current?.focus();
+            }}
+            style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Enter en la tele"
+          >
+            <Icon name="keyboardReturn" size={20} color={colors.text} />
+            <Text style={styles.secondaryText}>Enter</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <Text style={styles.hint}>{hintFor(state)}</Text>
 
       <AppSheet
-        visible={picking}
+        visible={picking && state.appLinks}
         state={state}
         onPick={(id) => tv.setTarget(id)}
         onClose={() => {
@@ -129,6 +157,8 @@ export function TypingView({ state }: { state: TvState }) {
 }
 
 function submitLabel(state: TvState): string {
+  if (state.compose) return 'Enviar';
+  if (!state.appLinks) return 'Enter';
   const app = appById(state.target);
   if (!app) return 'Enter';
   if (app.opensOnly) return app.packages.includes(state.tvApp) ? 'Escribir' : 'Abrir';
@@ -136,8 +166,20 @@ function submitLabel(state: TvState): string {
 }
 
 function hintFor(state: TvState): string {
+  if (state.problem) return state.problem;
   if (state.connection === 'offline') {
     return `No encuentro ${state.tvName || 'la tele'}. Fijate que esté prendida y en la misma Wi-Fi.`;
+  }
+  if (state.compose) {
+    return `Abrí un buscador o un campo de texto en la tele. Escribí acá y tocá «Enviar»: ${state.brandLabel || 'esta tele'} no deja borrar desde el celular, así que el texto va completo de una vez.`;
+  }
+  if (!state.appLinks && state.tvKeyboard === false) {
+    return 'Abrí un buscador o un campo de texto en la tele: cuando aparezca su teclado, lo que escribas acá aparece ahí.';
+  }
+  if (!state.appLinks) {
+    return state.canSubmit
+      ? 'Abrí un buscador o un campo de texto en la tele: lo que escribas aparece ahí. «Enter» lo confirma.'
+      : 'Abrí un buscador o un campo de texto en la tele: lo que escribas aparece ahí. Para buscar, usá el control de la tele.';
   }
   const app = appById(state.target);
   if (!app) return 'Lo que escribas aparece en el campo de texto abierto en la tele. «Enter» lo confirma.';
@@ -201,6 +243,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     height: 58,
   },
+  primaryWide: { flex: 1, justifyContent: 'center' },
+  secondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 20,
+    height: 58,
+  },
+  secondaryText: { color: colors.text, fontSize: 16, fontWeight: '700' },
   primaryText: { color: colors.onFocus, fontSize: 16, fontWeight: '700' },
   pressed: { opacity: 0.8 },
   hint: { ...type.small, color: colors.muted, paddingHorizontal: 4 },

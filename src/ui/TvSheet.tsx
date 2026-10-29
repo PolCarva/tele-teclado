@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { TvState } from '../tv/TvController';
 import { tv } from '../tv/useTv';
@@ -12,6 +12,7 @@ import { colors, radius, type } from './theme';
 export function TvSheet({ visible, state, onClose }: { visible: boolean; state: TvState; onClose: () => void }) {
   const [advanced, setAdvanced] = useState(false);
   const [address, setAddress] = useState('');
+  const [checking, setChecking] = useState(false);
 
   return (
     <Sheet visible={visible} title="Tu tele" subtitle="Teles encontradas en tu Wi-Fi" onClose={onClose}>
@@ -21,7 +22,7 @@ export function TvSheet({ visible, state, onClose }: { visible: boolean; state: 
           tv.chooseTv(found);
           onClose();
         }}
-        onRescan={() => void tv.scanTvs()}
+        onRescan={() => void tv.scanTvs({ deep: true })}
       />
 
       <Pressable onPress={() => setAdvanced((v) => !v)} style={styles.advancedToggle} accessibilityRole="button">
@@ -45,15 +46,17 @@ export function TvSheet({ visible, state, onClose }: { visible: boolean; state: 
               accessibilityLabel="Dirección de la tele"
             />
             <Pressable
-              onPress={() => {
-                if (!address.trim()) return;
-                tv.chooseTv({ name: address.trim(), host: address.trim() });
+              onPress={async () => {
+                if (!address.trim() || checking) return;
+                setChecking(true);
+                await tv.chooseAddress(address);
+                setChecking(false);
                 onClose();
               }}
               style={({ pressed }) => [styles.smallButton, pressed && { opacity: 0.8 }]}
               accessibilityRole="button"
             >
-              <Text style={styles.smallButtonText}>Conectar</Text>
+              {checking ? <ActivityIndicator color={colors.onFocus} /> : <Text style={styles.smallButtonText}>Conectar</Text>}
             </Pressable>
           </View>
           {state.host ? (

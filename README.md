@@ -1,30 +1,46 @@
 # Teclado TV
 
-App para el celular (Android y iPhone): escribís en una caja de texto y aparece en la tele, por ejemplo en la búsqueda de YouTube, o busca directo en la app que elijas.
+App para el celular (Android y iPhone): escribís en una caja de texto y aparece en la tele, por ejemplo en la búsqueda de YouTube, Netflix o cualquier campo de texto.
 
-Habla directo con la tele por la Wi-Fi, con el mismo protocolo que usa el control remoto de Google ("Android TV Remote v2"). Funciona con teles Android TV y Google TV (probada con una TCL Android TV 11). No necesita la Mac prendida ni nada instalado en la tele.
+Habla directo con la tele por la Wi-Fi, usando el protocolo de cada marca. Funciona con varias marcas:
+
+- **Android TV / Google TV** (TCL, Sony, Philips, Xiaomi, Sharp, Hisense, Chromecast con Google TV, Nvidia Shield…): escribe en vivo y además puede abrir la búsqueda de YouTube, Netflix, Prime Video, Disney+, HBO Max o Stremio. Probada con una TCL Android TV 11.
+- **Samsung** (Tizen, 2016 en adelante): escribe cuando la tele tiene abierto su teclado.
+- **LG** (webOS, 2014 en adelante): escribe en el campo de texto abierto.
+- **Roku** (incluye teles Roku de TCL, Hisense, Sharp…): escribe letra por letra en el campo abierto.
+- **Sony BRAVIA** sin Android (2013–2015) y como respaldo en las Android: escribe cuando la tele tiene su teclado abierto.
+- **Panasonic VIERA** (2011 en adelante, con o sin cifrado): manda el texto completo de una vez.
+
+No necesita la Mac prendida ni nada instalado en la tele. Las marcas que no son Android TV se agregaron en base a la documentación de cada protocolo y a proyectos de código abierto; se probaron contra teles simuladas armadas desde esas fuentes, pero no contra cada modelo real.
 
 ## Cómo se usa
 
-- **La tele se encuentra sola.** La primera vez, la app busca las teles de tu Wi-Fi: si hay una sola, la usa; si hay varias, te las muestra por nombre (el que tiene la tele, por ejemplo "Living TV"). Arriba en la pantalla está el nombre de la tele y su estado; tocándolo ves las teles de la Wi-Fi y podés cambiar. Si la tele cambia de dirección IP, la app la vuelve a encontrar sola.
-- Abrís la app y el teclado ya está abierto. Escribís y tocás **Buscar** (o la tecla de buscar del teclado del celular). La cruz dentro de la caja borra lo escrito, también en la tele.
-- **Buscar en:** el selector con íconos elige en qué app se busca: YouTube, Netflix, Prime Video, Disney+, HBO Max, Stremio, o "App abierta (Enter)".
-  - Sigue solo a la tele: si en la tele está abierta una de esas apps, la elige ("En la tele"). En la pantalla de inicio elige YouTube. En cualquier otra app elige "App abierta", que escribe en el campo de la tele y aprieta Enter.
-  - Si elegís otra a mano, queda elegida hasta que la tele cambie de app. Por ejemplo: estás en YouTube, elegís Prime Video y tocás Buscar; la tele abre Prime Video con la búsqueda.
-- Mientras escribís en la misma app que está abierta en la tele, el texto aparece en la tele al instante. Si elegiste otra app, el texto se manda recién al tocar Buscar.
-- **Tildes y ñ:** YouTube, HBO Max y Netflix las descartan, así que mientras escribís ahí la app manda la letra sin tilde (ñ → n). En YouTube y las apps con enlace de búsqueda, al tocar Buscar la búsqueda sí va con tildes.
-- Disney+ (y a veces otras) puede pedir elegir perfil la primera vez que se abre; después sigue sola a la búsqueda.
-- **HBO Max** abre su búsqueda y escribe el texto unos segundos después (en frío puede tardar hasta 20 s).
-- **Netflix** no deja abrir su búsqueda desde afuera. Con Netflix elegida, el botón dice **Abrir** (abre la app y conserva el texto). Ya en Netflix, abrí su búsqueda con el control de la tele (la lupa) y tocá **Escribir**: el texto aparece ahí y, desde ese momento, lo que escribas se ve en vivo.
-- Mientras la app está abierta, el teclado de pantalla de la tele queda reemplazado por el del celular. Cuando salís de la app (o después de 3 minutos sin escribir) vuelve el de la tele.
+- **La tele se encuentra sola.** La primera vez, la app busca las teles de tu Wi-Fi: si hay una sola, la usa; si hay varias, te las muestra por nombre y marca. Arriba está el nombre de la tele y su estado; tocándolo ves las teles de la Wi-Fi y podés cambiar. Si la tele cambia de dirección IP, la app la vuelve a encontrar sola.
+- Abrís la app y el teclado ya está abierto. Escribís y tocás **Buscar** / **Enter** / **Enviar** (según la tele), o la tecla del teclado del celular. La cruz dentro de la caja borra lo escrito.
+- **Según la marca:**
+  - **Android TV:** aparece el selector "Buscar en" con íconos (YouTube, Netflix, Prime Video, Disney+, HBO Max, Stremio, o "App abierta (Enter)"). Sigue sola a la app abierta en la tele; podés cambiarla a mano. El texto aparece en vivo mientras escribís.
+  - **Samsung, LG, Roku, Sony:** abrí un buscador o un campo de texto en la tele (por ejemplo la lupa de YouTube). Cuando la tele muestra su teclado, lo que escribís aparece ahí al instante. En Samsung, LG y Sony, si el campo ya tenía texto, la app lo trae y seguís editando.
+  - **Panasonic:** no deja borrar desde el celular, así que escribís en el celular y tocás **Enviar**: el texto va completo. "Enter" confirma.
+- **Tildes y ñ:** algunas apps de Android (YouTube, HBO Max, Netflix) las descartan; ahí la app manda la letra sin tilde. En los enlaces de búsqueda y en las demás marcas las tildes sí van.
+
+## Vincular con la tele (una sola vez por celular)
+
+La primera vez, cada marca pide algo distinto. La app te guía:
+
+- **Android TV:** la tele muestra un código de 6 caracteres (números y letras A–F). Escribilo en las seis casillas.
+- **Sony / Panasonic (con cifrado) :** la tele muestra un código de 4 números. Escribilo. En Sony, si no aparece, activá en la tele el control remoto por red.
+- **Samsung / LG:** la tele pregunta "¿permitir este dispositivo?". Elegí **Permitir** (Sí) con el control de la tele.
+- **Roku:** no hace falta vincular, pero el control por red tiene que estar activado en la tele: **Ajustes → Sistema → Ajustes avanzados del sistema → Control por apps móviles → Activado**. Si está en "Limitado", la app te lo avisa.
+
+Queda vinculada; no hay que repetirlo salvo que borres la app o resetees la tele.
 
 ## Instalar
 
-**iPhone (TestFlight):** la app se distribuye por TestFlight con un grupo interno de testers, con distribución automática: cada versión nueva que sube EAS les llega a la app **TestFlight** del iPhone. La primera vez iOS pide permiso para buscar dispositivos en la red local: hay que aceptarlo.
+**iPhone (TestFlight):** la app se distribuye por TestFlight con distribución automática: cada versión nueva que sube EAS les llega a la app **TestFlight**. La primera vez iOS pide permiso para buscar dispositivos en la red local: hay que aceptarlo.
 
 **Android:** el instalador está en las [releases del repositorio](https://github.com/PolCarva/tele-teclado/releases) (`Teclado-TV.apk`). Localmente queda en `dist/Teclado-TV.apk`.
 
-- Sin cable: pasá el APK al celular (Google Drive, WhatsApp a vos mismo, correo…) y abrilo. Android pide permiso para instalar apps de esa fuente: permitilo. Si Play Protect avisa que es una app desconocida, elegí "Instalar de todas formas".
+- Sin cable: pasá el APK al celular (Google Drive, WhatsApp a vos mismo, correo…) y abrilo. Permití instalar de esa fuente; si Play Protect avisa, "Instalar de todas formas".
 - Con cable (depuración USB activada):
 
 ```bash
@@ -33,28 +49,23 @@ Habla directo con la tele por la Wi-Fi, con el mismo protocolo que usa el contro
 
 Reinstalar encima de una versión anterior conserva la vinculación.
 
-## Vincular con la tele (una sola vez por celular)
-
-1. La tele prendida y el celular en la misma Wi-Fi.
-2. Abrí **Teclado TV**. La tele muestra "Device pairing request" con un código de 6 caracteres (números y letras A-F).
-3. Escribí ese código en las seis casillas. Listo: queda vinculada. No hay que volver a hacerlo, salvo que borres la app.
-
-Si el código desaparece de la tele antes de escribirlo, tocá **Pedir otro código**.
-
 ## Si algo no anda
 
-- **"Sin conexión":** fijate que la tele esté prendida y en la misma Wi-Fi. Tocá el nombre de la tele arriba y **Buscar de nuevo**. Si no aparece, en **Avanzado** podés poner la dirección a mano.
-- **La tele pide vincular de nuevo** (por ejemplo, después de resetearla): escribí el código nuevo. También podés forzarlo en **Avanzado → Volver a vincular**.
-- **No aparece el texto:** tiene que haber un campo de texto abierto en la tele (por ejemplo, la búsqueda de YouTube). Si la tele recién está abriendo la app, esperá un segundo.
+- **"Sin conexión":** fijate que la tele esté prendida y en la misma Wi-Fi. Tocá el nombre de la tele arriba y **Buscar de nuevo** (hace una búsqueda más a fondo, dirección por dirección). Si no aparece, en **Avanzado** podés poner la dirección a mano: la app detecta sola la marca.
+- **No aparece el texto:** tiene que haber un campo de texto abierto en la tele (por ejemplo, su búsqueda). En Samsung/LG/Sony hay que ver el teclado de la tele; en Roku, el control por red tiene que estar "Activado".
+- **La tele pide vincular de nuevo** (por ejemplo, después de resetearla): seguí los pasos otra vez. En Android TV podés forzarlo en **Avanzado → Volver a vincular**.
+- **iPhone y marcas que no son Android TV:** iOS no deja mandar los mensajes de descubrimiento "multicast" sin un permiso especial de Apple, así que en iPhone la app encuentra esas teles por Bonjour o escaneando la red (**Buscar de nuevo**). En Android las encuentra directo.
 
 ## Para desarrollar
 
 Es una app de Expo (SDK 58). Partes:
 
-- `src/protocol/`: el protocolo Android TV Remote v2 en TypeScript (vinculación, sesión, mensajes protobuf, cálculo de diferencias de texto). Lo comparten la app y la herramienta de prueba de la Mac.
-- `modules/tv-remote/`: módulo nativo con lo que JavaScript no puede hacer solo: el certificado del celular, la conexión TLS con ese certificado, la búsqueda de teles por mDNS/Bonjour y un par de ajustes guardados. Android en Kotlin (`android/`), iPhone en Swift (`ios/`, con Network.framework y el llavero).
-- `src/tv/TvController.ts`: busca y recuerda la tele, mantiene la conexión, reintenta, pide vincular cuando hace falta, espeja la caja de texto en la tele y hace las búsquedas.
-- `src/tv/apps.ts`: las apps del selector y el enlace de búsqueda de cada una.
+- `src/protocol/`: el protocolo Android TV Remote v2 en TypeScript (vinculación, sesión, mensajes protobuf, diferencias de texto). Lo comparten la app y la herramienta de la Mac.
+- `src/net/`: las piezas de red compartidas sobre sockets crudos: HTTP/1.1, WebSocket (RFC 6455), MQTT, SHA-1/MD5/HMAC, AES-128-CBC y un parser de URL. Así las marcas que usan TLS con certificados propios, WebSockets o MQTT funcionan igual en Android y iPhone, sin chocar con las políticas de tráfico de cada sistema.
+- `src/brands/`: un conector por marca (`androidtv`, `samsung`, `lg`, `roku`, `sony`, `panasonic`) detrás de una interfaz común (`Driver`/`TvSession`), más el descubrimiento multi-marca (mDNS, SSDP y sondeo de puertos) en `discovery.ts`.
+- `src/tv/TvController.ts`: busca y recuerda la tele, mantiene la conexión, pide vincular, espeja la caja de texto en la tele y hace las búsquedas. No conoce ningún protocolo: habla con el conector de la marca.
+- `src/tv/apps.ts`: las apps del selector de Android TV y el enlace de búsqueda de cada una.
+- `modules/tv-remote/`: módulo nativo con lo que JavaScript no puede hacer solo: el certificado del celular, abrir sockets (TCP, TLS, o TLS con ese certificado), buscar teles (mDNS/Bonjour, SSDP, sondeo de puertos), datos de la red Wi-Fi y bytes aleatorios. Android en Kotlin, iPhone en Swift.
 - `App.tsx` y `src/ui/`: las pantallas (estilo Google TV: fondo oscuro, foco blanco).
 
 Comandos:
@@ -63,19 +74,13 @@ Comandos:
 npm run selftest
 ```
 
-Pruebas sin tele: SHA-256, protobuf contra bytes de la librería de referencia, diferencias de texto, y el controlador contra una tele simulada (detección, selector, búsquedas).
-
-```bash
-npm run tv -- pair
-```
-
-Desde la Mac: vincula la Mac con la tele (la herramienta usa su propio certificado en `scripts/.identity/`). Después, por ejemplo:
+Pruebas sin tele: SHA-256/SHA-1/MD5/HMAC y AES contra `node:crypto`, protobuf contra bytes de la librería de referencia, los clientes HTTP/WebSocket/MQTT contra servidores reales (`node:http`, el paquete `ws`, el broker `aedes`), el cifrado de Panasonic contra sus vectores publicados, y cada conector de marca contra una tele simulada armada desde las fuentes del protocolo (vinculación, detección del teclado, escritura, borrado, Enter).
 
 ```bash
 npm run tv -- type "hola mundo"
 ```
 
-Otros comandos: `key ENTER`, `link <url>`, `listen 30`, `steps wait:1000 text:hola key:DEL`. La dirección de la tele va en la variable `TV_HOST`.
+Desde la Mac: vincula la Mac con una tele Android y escribe (la herramienta usa su propio certificado en `scripts/.identity/`). Otros comandos: `pair`, `key ENTER`, `link <url>`, `listen 30`. La dirección va en `TV_HOST`.
 
 APK de Android:
 
@@ -83,37 +88,22 @@ APK de Android:
 npm run build:android
 ```
 
-iPhone con EAS (cuenta Expo `pablo-carvalho`, proyecto `tele-teclado`; las credenciales de Apple ya están guardadas en EAS):
+iPhone con EAS (cuenta Expo `pablo-carvalho`, proyecto `tele-teclado`; las credenciales de Apple ya están en EAS):
 
 ```bash
 eas build -p ios --profile production --auto-submit
 ```
 
-Compila en la nube y sube la versión a TestFlight con la clave de App Store Connect configurada en `eas.json`.
+Compila en la nube y sube la versión a TestFlight. Para el simulador, compilar con el equipo de Apple (`DEVELOPMENT_TEAM=JZ9HBXGNK9`), si no el simulador no le da acceso al llavero (error -34018). `ios/` y `android/` se generan con `npx expo prebuild`; CocoaPods necesita `LANG=en_US.UTF-8`.
 
-Para probar en el simulador de iPhone, compilar con el equipo de Apple indicado: sin él, el simulador no le da a la app acceso al llavero (error -34018) y no puede guardar su certificado.
+### Cómo se comporta cada tele
 
-```bash
-xcodebuild -workspace ios/TecladoTV.xcworkspace -scheme TecladoTV -configuration Release -sdk iphonesimulator -derivedDataPath ios/build DEVELOPMENT_TEAM=JZ9HBXGNK9 CODE_SIGN_IDENTITY=- build
-```
+Lo del Android TV (probado con la TCL) sigue igual que antes: al conectarse, la tele cambia a su "teclado puente" en ~0,2 s (la app espera 0,7 s), el texto se inserta en el cursor, YouTube/Max/Netflix descartan tildes, Enter en YouTube aprieta la tecla marcada (por eso "Buscar" usa un enlace), y los enlaces de búsqueda por app están en `src/tv/apps.ts`.
 
-`ios/` y `android/` se generan con `npx expo prebuild`. CocoaPods necesita `LANG=en_US.UTF-8`.
+Lo de las demás marcas viene de la investigación de protocolos (resumida en los comentarios de cada archivo de `src/brands/`). Puntos que todavía no se pudieron probar contra un modelo real, y que la app maneja con cuidado:
 
-### Cómo se comporta la tele (probado con la TCL)
+- **Samsung / LG:** si el campo reemplaza o inserta el texto está confirmado solo en algunos años; la app usa el modo que indica cada protocolo y se sincroniza con lo que la tele informa de su teclado. Apps con teclado propio (a veces YouTube/Netflix) no levantan el teclado del sistema; ahí la escritura no llega.
+- **Sony / Panasonic:** si las tildes llegan intactas no está confirmado en todos los modelos.
+- **Roku:** la escritura necesita el modo "Activado"; en "Limitado" (el valor por defecto en varios modelos nuevos) la app avisa que hay que cambiar el ajuste.
 
-- Al conectarse un celular, el servicio remoto de la tele cambia su teclado al "teclado puente" (`ImeBridgeService`) en unos 0,2 s. Lo que llega antes se pierde, así que la app espera 0,7 s después de conectar antes de mandar texto.
-- Cada mensaje de texto se **inserta** en el cursor; no reemplaza lo que hay. Por eso la app manda solo la diferencia, y borra con la tecla DEL.
-- En YouTube, DEL con el campo vacío equivale a "volver"; la app nunca manda más borrados que lo que escribió.
-- YouTube, HBO Max y Netflix no usan un campo de texto de Android (dibujan el suyo). El sistema convierte el texto que llega en pulsaciones de teclas, y las letras con tilde o la ñ no tienen tecla propia, así que se pierden.
-- En YouTube, Enter aprieta la tecla marcada en su teclado de pantalla (escribe una "a"). Por eso "Buscar" usa un enlace de búsqueda, que abre los resultados y deja marcado el primer video.
-- La tele solo acepta enlaces comunes (no `intent:`). Enlaces de búsqueda que funcionan (`src/tv/apps.ts`):
-  - YouTube: `https://www.youtube.com/results?search_query=…`
-  - Netflix: no tiene enlace de búsqueda que sirva en Android TV (`nflx://www.netflix.com/search?q=…` abre el inicio) e ignora los enlaces si ya está abierta. La app solo la abre con `nflx://www.netflix.com/browse`. Netflix tampoco deja capturar su pantalla ni expone sus textos, así que no hay forma de verificarla automáticamente.
-  - Prime Video: `https://app.primevideo.com/search?phrase=…`
-  - Disney+: `disneyplus://www.disneyplus.com/search?q=…`
-  - HBO Max: `https://play.max.com/search` abre la búsqueda vacía y no avisa cuándo está lista. La app escribe el texto a los 3,5 y 8 s si Max ya estaba abierta, o a los 5, 12 y 20 s si recién arranca. Antes de cada reintento borra lo que dejó el anterior y espera 1,5 s: si llegan borrados y letras juntos, Max los mezcla. Borrar con el campo vacío no la saca de la búsqueda.
-  - Stremio: `stremio:///search?search=…`
-  - Paramount+ (sin sesión iniciada), DirecTV GO y Vera TV no tienen un enlace de búsqueda que sirva; usan "App abierta (Enter)".
-- La tele avisa qué app está al frente cada vez que cambia; con eso se mueve el selector.
-- Si hay dos conexiones a la vez, la tele solo hace caso a la última.
-- La tele se anuncia en la red como `_androidtvremote2._tcp` con su nombre; la dirección IP la asigna el router y puede cambiar (pasó de `192.168.68.54` a `192.168.68.50` tras un reinicio).
+No se incluyeron (todavía) Vizio (solo EE.UU., sin tildes) ni Hisense VIDAA (el envío de texto no está confirmado en ningún modelo real), para no prometer una escritura que podría no funcionar.

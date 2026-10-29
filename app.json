@@ -13,9 +13,18 @@
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Para escribir en la tele, la app se conecta a ella por la Wi-Fi de tu casa.",
         "NSBonjourServices": [
-          "_androidtvremote2._tcp"
+          "_androidtvremote2._tcp",
+          "_samsungmsf._tcp",
+          "_googlecast._tcp",
+          "_airplay._tcp",
+          "_companion-link._tcp",
+          "_raop._tcp"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
@@ -28,7 +37,9 @@
       },
       "permissions": [
         "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE"
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CHANGE_WIFI_MULTICAST_STATE",
+        "android.permission.ACCESS_WIFI_STATE"
       ],
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",

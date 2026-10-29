@@ -1,9 +1,11 @@
 import ExpoModulesCore
 import Foundation
+import Security
 
 /// Native side of the TV remote on iPhone (same functions as the Android module):
-/// this phone's certificate, TLS sockets that present it, finding TVs on the Wi-Fi,
-/// and a tiny key/value store. The protocol itself lives in TypeScript (src/protocol).
+/// this phone's certificate; byte streams to the TV (plain TCP, TLS, or TLS presenting that
+/// certificate); finding TVs on the Wi-Fi (Bonjour, SSDP, port probe) and the phone's own address;
+/// secure random bytes and a tiny key/value store. The protocols themselves live in TypeScript.
 public class TvRemoteModule: Module {
   private let queue = DispatchQueue(label: "tele-teclado.tv-remote")
   private let lock = NSLock()
@@ -24,19 +26,22 @@ public class TvRemoteModule: Module {
       ClientIdentity.reset()
     }
 
-    AsyncFunction("connect") { (host: String, port: Int, timeoutMs: Int, promise: Promise) in
-      let identity: ClientIdentity
-      do {
-        identity = try ClientIdentity.load()
-      } catch {
-        promise.reject("ERR_IDENTITY", "\(error)")
-        return
+    AsyncFunction("connect") { (host: String, port: Int, timeoutMs: Int, mode: String, promise: Promise) in
+      var identity: ClientIdentity?
+      if mode == "tls-client-cert" {
+        do {
+          identity = try ClientIdentity.load()
+        } catch {
+          promise.reject("ERR_IDENTITY", "\(error)")
+          return
+        }
       }
       let id = self.allocateId()
       let connection = TvConnection(
         id: id,
         host: host,
         port: port,
+        mode: mode,
         identity: identity,
         queue: self.queue,
         onData: { [weak self] data in
@@ -76,8 +81,30 @@ public class TvRemoteModule: Module {
       self.connection(id)?.close()
     }
 
-    AsyncFunction("discover") { (timeoutMs: Int, promise: Promise) in
-      TvDiscovery.find(timeoutMs: timeoutMs) { tvs in promise.resolve(tvs) }
+    AsyncFunction("browse") { (types: [String], timeoutMs: Int, promise: Promise) in
+      MdnsBrowser.browse(types: types, timeoutMs: timeoutMs) { found in promise.resolve(found) }
+    }
+
+    AsyncFunction("ssdp") { (targets: [String], hosts: [String], timeoutMs: Int, promise: Promise) in
+      DispatchQueue.global(qos: .userInitiated).async {
+        promise.resolve(LanTools.ssdp(targets: targets, hosts: hosts, timeoutMs: timeoutMs))
+      }
+    }
+
+    AsyncFunction("probe") { (hosts: [String], ports: [Int], timeoutMs: Int, concurrency: Int, promise: Promise) in
+      PortProbe.run(hosts: hosts, ports: ports, timeoutMs: timeoutMs, concurrency: concurrency) { open in
+        promise.resolve(open)
+      }
+    }
+
+    AsyncFunction("networkInfo") { () -> [String: Any]? in
+      LanTools.networkInfo()
+    }
+
+    Function("randomBytes") { (count: Int) -> String in
+      var bytes = [UInt8](repeating: 0, count: max(0, min(count, 4096)))
+      _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+      return Data(bytes).base64EncodedString()
     }
 
     Function("getSetting") { (key: String) -> String? in

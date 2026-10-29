@@ -2,12 +2,16 @@ This is an Expo/React Native mobile application. Prioritize mobile-first pattern
 
 ## This project
 
-Teclado TV: one-screen app that types into the focused text field of an Android TV (Android TV Remote protocol v2). Read README.md first.
+Teclado TV: one-screen app that types into the focused text field of a TV. It talks several brands' protocols: Android TV Remote v2, Samsung Tizen (WebSocket), LG webOS (SSAP), Roku ECP, Sony Scalar Web API, Panasonic VIERA (SOAP). Read README.md first.
 
 - One screen in `App.tsx`; no Expo Router on purpose (keep it that way unless screens are added).
-- Protocol logic is TypeScript in `src/protocol/` and is shared with the Mac test tool (`npm run tv -- …`). Keep it free of React Native imports.
-- Native code is only in `modules/tv-remote/` (certificate, TLS sockets, mDNS, settings): Kotlin for Android, Swift for iOS. Keep both sides' functions in sync with `src/TvRemoteModule.ts`.
-- Check protocol changes with `npm run selftest`, then against the real TV with `npm run tv -- type "hola"`.
+- Protocol/transport logic is TypeScript, free of React Native imports and shared with the Mac test tool (`npm run tv -- …`):
+  - `src/protocol/` — Android TV Remote v2 (pairing, session, protobuf, SHA-256).
+  - `src/net/` — shared transports over raw sockets: HTTP/1.1, WebSocket, MQTT, SHA-1/MD5/HMAC, AES-128-CBC, URL parser.
+  - `src/brands/` — one connector per brand behind the `Driver`/`TvSession` interface in `types.ts`, plus multi-brand discovery in `discovery.ts`. `TvController` is brand-agnostic.
+- Native code is only in `modules/tv-remote/` (certificate; TCP/TLS/client-cert sockets; mDNS/SSDP/port-probe discovery; Wi-Fi info; random bytes; settings): Kotlin for Android, Swift for iOS. Keep both sides' functions in sync with `src/TvRemoteModule.ts`. All TV protocols run over these raw sockets, so they are not subject to Android cleartext policy or iOS ATS.
+- To add a brand: write `src/brands/<brand>.ts` implementing `Driver`, register it in `src/brands/index.ts`, and add a simulated TV + test in `scripts/tests/`. Base it on real protocol sources, not memory.
+- Check changes with `npm run selftest` (crypto vs node, protobuf vs reference bytes, HTTP/WS/MQTT vs real servers, each brand vs a simulated TV), then Android TV against the real TV with `npm run tv -- type "hola"`.
 - Build the APK with `npm run build:android` (output: `dist/Teclado-TV.apk`). iOS ships through EAS + TestFlight: `eas build -p ios --profile production --auto-submit`.
 
 ## Expo has changed — do not trust your training data

@@ -53,7 +53,7 @@ function Main() {
 /** The TV in use and its status. Tap to see the TVs on the Wi-Fi. */
 function Header({ state, onPress }: { state: TvState; onPress: () => void }) {
   const { color, label } = state.pairing
-    ? { color: colors.warn, label: 'Falta vincular' }
+    ? { color: colors.warn, label: state.pairing.phase === 'waiting_accept' ? 'Esperando permiso' : 'Falta vincular' }
     : state.connection === 'ready' || state.connection === 'idle'
       ? { color: colors.ok, label: 'Conectada' }
       : state.connection === 'offline'
@@ -75,7 +75,9 @@ function Header({ state, onPress }: { state: TvState; onPress: () => void }) {
         </Text>
         <View style={styles.statusRow}>
           <View style={[styles.dot, { backgroundColor: color }]} />
-          <Text style={styles.statusText}>{label}</Text>
+          <Text style={styles.statusText} numberOfLines={1}>
+            {state.brandLabel ? `${label} · ${state.brandLabel}` : label}
+          </Text>
         </View>
       </View>
       <Icon name="chevronDown" size={22} color={colors.muted} />
@@ -92,7 +94,7 @@ function ChooseTv({ state }: { state: TvState }) {
         <Text style={styles.title}>Elegí tu tele</Text>
         <Text style={styles.subtitle}>Estas son las teles que encontré en tu Wi-Fi.</Text>
       </View>
-      <TvList state={state} onChoose={(found) => tv.chooseTv(found)} onRescan={() => void tv.scanTvs()} />
+      <TvList state={state} onChoose={(found) => tv.chooseTv(found)} onRescan={() => void tv.scanTvs({ deep: true })} />
     </View>
   );
 }

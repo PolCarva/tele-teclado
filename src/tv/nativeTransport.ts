@@ -64,10 +64,10 @@ export const nativeTransport: Transport & { resetClientKey(): Promise<void> } = 
     return { modulus: hexToBytes(key.modulus), exponent: hexToBytes(key.exponent) };
   },
 
-  async connect(host, port, timeoutMs) {
+  async connect(host, port, timeoutMs, mode = 'tls-client-cert') {
     let result;
     try {
-      result = await TvRemote.connect(host, port, timeoutMs);
+      result = await TvRemote.connect(host, port, timeoutMs, mode);
     } catch (e) {
       const err = e as { code?: string; message?: string };
       const code = err.code === 'ERR_TLS' ? 'tls' : err.code === 'ERR_NETWORK' ? 'network' : 'unknown';
@@ -85,12 +85,40 @@ export const nativeTransport: Transport & { resetClientKey(): Promise<void> } = 
     return conn;
   },
 
-  async discover(timeoutMs) {
+  async browse(types, timeoutMs) {
     try {
-      return await TvRemote.discover(timeoutMs);
+      return await TvRemote.browse(types, timeoutMs);
     } catch {
       return [];
     }
+  },
+
+  async ssdp(targets, hosts, timeoutMs) {
+    try {
+      return await TvRemote.ssdp(targets, hosts, timeoutMs);
+    } catch {
+      return [];
+    }
+  },
+
+  async probe(hosts, ports, timeoutMs, concurrency) {
+    try {
+      return await TvRemote.probe(hosts, ports, timeoutMs, concurrency);
+    } catch {
+      return [];
+    }
+  },
+
+  async networkInfo() {
+    try {
+      return await TvRemote.networkInfo();
+    } catch {
+      return null;
+    }
+  },
+
+  randomBytes(count) {
+    return base64Decode(TvRemote.randomBytes(count));
   },
 };
 

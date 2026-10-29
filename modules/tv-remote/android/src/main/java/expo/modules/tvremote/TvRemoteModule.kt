@@ -7,6 +7,7 @@ import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.IOException
+import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import javax.net.ssl.SSLException
@@ -15,13 +16,13 @@ import kotlin.concurrent.thread
 /**
  * Native side of the TV remote: only what JavaScript can't do by itself.
  * - this phone's certificate (created once),
- * - TLS sockets that present that certificate,
- * - finding the TV on the Wi-Fi,
- * - a tiny key/value store for settings.
- * The protocol itself lives in TypeScript (src/protocol).
+ * - byte streams to the TV: plain TCP, TLS, or TLS presenting that certificate,
+ * - finding TVs on the Wi-Fi (mDNS, SSDP, port probe) and the phone's own address,
+ * - secure random bytes and a tiny key/value store for settings.
+ * The protocols themselves (HTTP, WebSocket, MQTT and each brand) live in TypeScript.
  */
 class TvRemoteModule : Module() {
-  private val connections = ConcurrentHashMap<Int, TlsConnection>()
+  private val connections = ConcurrentHashMap<Int, SocketConnection>()
   private val nextId = AtomicInteger(1)
 
   private val context: Context
@@ -53,13 +54,12 @@ class TvRemoteModule : Module() {
       }
     }
 
-    AsyncFunction("connect") { host: String, port: Int, timeoutMs: Int, promise: Promise ->
+    AsyncFunction("connect") { host: String, port: Int, timeoutMs: Int, mode: String, promise: Promise ->
       thread(name = "tv-remote-connect") {
         try {
-          val identity = ClientIdentity.load(context)
           val id = nextId.getAndIncrement()
-          val connection = TlsConnection.open(
-            host, port, timeoutMs, identity,
+          val connection = SocketConnection.open(
+            host, port, timeoutMs, mode, { ClientIdentity.load(context) },
             onData = { bytes ->
               sendEvent("onData", mapOf("id" to id, "data" to Base64.encodeToString(bytes, Base64.NO_WRAP)))
             },
@@ -100,8 +100,26 @@ class TvRemoteModule : Module() {
       Unit
     }
 
-    AsyncFunction("discover") { timeoutMs: Int, promise: Promise ->
-      TvDiscovery.find(context, timeoutMs) { found -> promise.resolve(found) }
+    AsyncFunction("browse") { types: List<String>, timeoutMs: Int, promise: Promise ->
+      MdnsBrowser.browse(context, types, timeoutMs) { found -> promise.resolve(found) }
+    }
+
+    AsyncFunction("ssdp") { targets: List<String>, hosts: List<String>, timeoutMs: Int, promise: Promise ->
+      thread(name = "tv-remote-ssdp") { promise.resolve(LanTools.ssdp(context, targets, hosts, timeoutMs)) }
+    }
+
+    AsyncFunction("probe") { hosts: List<String>, ports: List<Int>, timeoutMs: Int, concurrency: Int, promise: Promise ->
+      thread(name = "tv-remote-probe") { promise.resolve(LanTools.probe(hosts, ports, timeoutMs, concurrency)) }
+    }
+
+    AsyncFunction("networkInfo") { promise: Promise ->
+      promise.resolve(LanTools.networkInfo(context))
+    }
+
+    Function("randomBytes") { count: Int ->
+      val bytes = ByteArray(count.coerceIn(0, 4096))
+      SecureRandom().nextBytes(bytes)
+      Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
 
     Function("getSetting") { key: String ->

@@ -12,6 +12,8 @@ import { diffText, textForTv } from '../src/protocol/textSync';
 import { BufferedConnection, type Transport } from '../src/protocol/transport';
 import { autoTarget, SEARCH_APPS } from '../src/tv/apps';
 import { TvController } from '../src/tv/TvController';
+import { brandTests, brandTests2, brandTests3 } from './tests/brands';
+import { netTests } from './tests/net';
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -152,7 +154,7 @@ async function testController() {
       connectedTo.push(host);
       return (conn = new FakeTvConnection());
     },
-    discover: async () => [{ name: 'tele de prueba', host: '10.0.0.5' }],
+    browse: async () => [{ type: '_androidtvremote2._tcp', name: 'tele de prueba', host: '10.0.0.5', port: 6466, txt: {} }],
   };
   const store = new Map<string, string | null>();
   const tv = new TvController(
@@ -166,7 +168,7 @@ async function testController() {
   await sleep(10);
   assert.deepEqual(connectedTo, ['10.0.0.5']);
   assert.deepEqual([tv.getState().tvName, tv.getState().needsTv], ['tele de prueba', false]);
-  assert.equal(store.get('host'), '10.0.0.5');
+  assert.equal(JSON.parse(store.get('tv')!).host, '10.0.0.5');
   conn.tvSends(new PbWriter().message(1, new PbWriter().uint(1, 639)).finish()); // configure
   conn.tvSends(new PbWriter().message(2, new PbWriter()).finish()); // set_active
   conn.tvSends(new PbWriter().message(40, new PbWriter().uint(1, 1)).finish()); // start
@@ -239,14 +241,23 @@ async function testController() {
   tv.setActive(false);
 }
 
-testController().then(
-  () => {
-    passed++;
-    console.log('ok - controller: search target, live typing, search in another app');
-    console.log(`\n${passed} tests passed`);
-  },
-  (e) => {
-    console.error(e);
-    process.exit(1);
-  },
-);
+async function asyncTest(name: string, fn: () => void | Promise<void>) {
+  await fn();
+  passed++;
+  console.log(`ok - ${name}`);
+}
+
+async function main() {
+  await asyncTest('controller: search target, live typing, search in another app', testController);
+  await netTests(asyncTest);
+  await brandTests(asyncTest);
+  await brandTests2(asyncTest);
+  await brandTests3(asyncTest);
+  console.log(`\n${passed} tests passed`);
+  process.exit(0);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

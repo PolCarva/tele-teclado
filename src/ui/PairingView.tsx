@@ -5,11 +5,53 @@ import type { TvState } from '../tv/TvController';
 import { tv } from '../tv/useTv';
 import { colors, radius, type } from './theme';
 
-const LENGTH = 6;
-
-/** Pairing: the TV shows a 6-character code; it goes in six boxes here. */
+/**
+ * Pairing. Either the TV shows a code (6 hex characters on Android TV, 4 digits on others) that
+ * goes in the boxes here, or it asks "allow this phone?" and we wait for the answer.
+ */
 export function PairingView({ state }: { state: TvState }) {
   const pairing = state.pairing!;
+  const prompt = pairing.prompt;
+  if (pairing.phase === 'waiting_accept' || prompt?.kind === 'accept') return <AcceptView state={state} />;
+  return <CodeView state={state} />;
+}
+
+function AcceptView({ state }: { state: TvState }) {
+  const pairing = state.pairing!;
+  const prompt = pairing.prompt;
+  return (
+    <View style={styles.body}>
+      <View style={styles.titles}>
+        <Text style={styles.title}>{prompt?.title ?? 'Aceptá en la tele'}</Text>
+        <Text style={styles.subtitle}>
+          {prompt?.message ?? `${state.tvName || 'La tele'} pregunta si deja conectar a este celular. Elegí «Permitir» con el control.`}
+        </Text>
+      </View>
+      {pairing.phase === 'waiting_accept' ? (
+        <View style={styles.inline}>
+          <ActivityIndicator color={colors.accent} />
+          <Text style={styles.subtitle}>Esperando la respuesta de la tele…</Text>
+        </View>
+      ) : null}
+      {pairing.error ? <Text style={styles.error}>{pairing.error}</Text> : null}
+      {pairing.phase === 'failed' ? (
+        <Pressable
+          onPress={() => tv.requestNewCode()}
+          style={({ pressed }) => [styles.button, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+        >
+          <Text style={styles.buttonText}>Probar de nuevo</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function CodeView({ state }: { state: TvState }) {
+  const pairing = state.pairing!;
+  const prompt = pairing.prompt?.kind === 'code' ? pairing.prompt : null;
+  const LENGTH = prompt?.length ?? 6;
+  const digits = prompt?.charset === 'digits';
   const [code, setCode] = useState('');
   const [shownError, setShownError] = useState(pairing.error);
   const input = useRef<ComponentRef<typeof TextInput>>(null);
@@ -21,7 +63,10 @@ export function PairingView({ state }: { state: TvState }) {
   }
 
   const change = (next: string) => {
-    const clean = next.toUpperCase().replace(/[^0-9A-F]/g, '').slice(0, LENGTH);
+    const clean = next
+      .toUpperCase()
+      .replace(digits ? /[^0-9]/g : /[^0-9A-F]/g, '')
+      .slice(0, LENGTH);
     setCode(clean);
     if (clean.length === LENGTH) void tv.submitCode(clean);
   };
@@ -31,9 +76,9 @@ export function PairingView({ state }: { state: TvState }) {
   return (
     <View style={styles.body}>
       <View style={styles.titles}>
-        <Text style={styles.title}>Vinculá tu celular</Text>
+        <Text style={styles.title}>{prompt?.title ?? 'Vinculá tu celular'}</Text>
         <Text style={styles.subtitle}>
-          Escribí el código que aparece en {state.tvName || 'la tele'}. Se hace una sola vez.
+          {prompt?.message ?? `Escribí el código que aparece en ${state.tvName || 'la tele'}. Se hace una sola vez.`}
         </Text>
       </View>
 
@@ -62,7 +107,7 @@ export function PairingView({ state }: { state: TvState }) {
             autoFocus
             autoCapitalize="characters"
             autoCorrect={false}
-            keyboardType={Platform.OS === 'android' ? 'visible-password' : 'ascii-capable'}
+            keyboardType={digits ? 'number-pad' : Platform.OS === 'android' ? 'visible-password' : 'ascii-capable'}
             maxLength={LENGTH}
             editable={pairing.phase === 'waiting_code'}
             caretHidden

@@ -12,7 +12,8 @@ struct ConnectError: Error {
   let message: String
 }
 
-/// One TLS connection to the TV, authenticated with this phone's certificate.
+/// One byte stream to a TV: plain TCP, TLS, or TLS that presents this phone's certificate
+/// (Android TV remote). TVs use self-signed certificates, so the server certificate is not checked.
 /// All state changes happen on the serial `queue`.
 final class TvConnection {
   let id: Int
@@ -28,7 +29,8 @@ final class TvConnection {
     id: Int,
     host: String,
     port: Int,
-    identity: ClientIdentity,
+    mode: String,
+    identity: ClientIdentity?,
     queue: DispatchQueue,
     onData: @escaping (Data) -> Void,
     onClose: @escaping (String?) -> Void
@@ -38,27 +40,32 @@ final class TvConnection {
     self.onData = onData
     self.onClose = onClose
 
-    let tls = NWProtocolTLS.Options()
-    let security = tls.securityProtocolOptions
-    if let localIdentity = sec_identity_create(identity.identity) {
-      sec_protocol_options_set_local_identity(security, localIdentity)
-    }
-    sec_protocol_options_set_min_tls_protocol_version(security, .TLSv12)
-    // The TV's certificate is self-signed; pairing ties it to the code shown on screen.
-    // Keep its public key: the pairing secret is computed from it.
     let captured = KeyBox()
-    sec_protocol_options_set_verify_block(security, { _, trust, complete in
-      let secTrust = sec_trust_copy_ref(trust).takeRetainedValue()
-      if let chain = SecTrustCopyCertificateChain(secTrust) as? [SecCertificate],
-         let leaf = chain.first, let key = SecCertificateCopyKey(leaf) {
-        captured.key = RSAPublicKey(key: key)
-      }
-      complete(true)
-    }, queue)
-
     let tcp = NWProtocolTCP.Options()
     tcp.noDelay = true
-    let parameters = NWParameters(tls: tls, tcp: tcp)
+    let parameters: NWParameters
+    if mode == "tcp" {
+      parameters = NWParameters(tls: nil, tcp: tcp)
+    } else {
+      let tls = NWProtocolTLS.Options()
+      let security = tls.securityProtocolOptions
+      if mode == "tls-client-cert", let identity, let localIdentity = sec_identity_create(identity.identity) {
+        sec_protocol_options_set_local_identity(security, localIdentity)
+      }
+      // Older TVs only speak older TLS versions.
+      sec_protocol_options_set_min_tls_protocol_version(security, .TLSv10)
+      // The TV's certificate is self-signed; each protocol ties the TV to this phone its own way.
+      // Keep its public key: the Android TV pairing secret is computed from it.
+      sec_protocol_options_set_verify_block(security, { _, trust, complete in
+        let secTrust = sec_trust_copy_ref(trust).takeRetainedValue()
+        if let chain = SecTrustCopyCertificateChain(secTrust) as? [SecCertificate],
+           let leaf = chain.first, let key = SecCertificateCopyKey(leaf) {
+          captured.key = RSAPublicKey(key: key)
+        }
+        complete(true)
+      }, queue)
+      parameters = NWParameters(tls: tls, tcp: tcp)
+    }
     connection = NWConnection(
       host: NWEndpoint.Host(host),
       port: NWEndpoint.Port(rawValue: UInt16(clamping: port)) ?? 6466,

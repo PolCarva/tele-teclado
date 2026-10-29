@@ -14,23 +14,27 @@ import javax.net.ssl.X509TrustManager
 import kotlin.concurrent.thread
 
 /**
- * One TLS connection to the TV, authenticated with this phone's certificate.
+ * One byte stream to a TV: plain TCP, TLS, or TLS that presents this phone's certificate
+ * (Android TV remote). TVs use self-signed certificates, so the server certificate is not checked.
  * Reads on its own thread and writes in order on a single-thread executor.
  */
-class TlsConnection private constructor(
-  private val socket: SSLSocket,
+class SocketConnection private constructor(
+  private val socket: Socket,
   private val onData: (ByteArray) -> Unit,
   private val onClose: (String?) -> Unit,
 ) {
   private val writer = Executors.newSingleThreadExecutor()
   private val closed = AtomicBoolean(false)
 
-  /** The TV's certificate key. Pairing mixes it into the secret. */
-  val serverKey: RSAPublicKey? =
-    (socket.session.peerCertificates.firstOrNull() as? X509Certificate)?.publicKey as? RSAPublicKey
+  /** The TV's certificate key (TLS only). Android TV pairing mixes it into the secret. */
+  val serverKey: RSAPublicKey? = try {
+    ((socket as? SSLSocket)?.session?.peerCertificates?.firstOrNull() as? X509Certificate)?.publicKey as? RSAPublicKey
+  } catch (_: Exception) {
+    null
+  }
 
   fun startReading() {
-    thread(name = "tv-remote-read", isDaemon = true) {
+    thread(name = "tv-socket-read", isDaemon = true) {
       val buffer = ByteArray(16 * 1024)
       var error: String? = null
       try {
@@ -74,25 +78,34 @@ class TlsConnection private constructor(
   }
 
   companion object {
+    /** mode: "tcp", "tls" or "tls-client-cert". */
     fun open(
       host: String,
       port: Int,
       timeoutMs: Int,
-      identity: ClientIdentity,
+      mode: String,
+      identity: () -> ClientIdentity,
       onData: (ByteArray) -> Unit,
       onClose: (String?) -> Unit,
-    ): TlsConnection {
-      val context = SSLContext.getInstance("TLS")
-      context.init(arrayOf(identity.keyManager()), arrayOf(AcceptTvCertificate), SecureRandom())
+    ): SocketConnection {
       val raw = Socket()
       try {
         raw.connect(InetSocketAddress(host, port), timeoutMs)
         raw.tcpNoDelay = true
+        if (mode == "tcp") return SocketConnection(raw, onData, onClose)
+        val context = SSLContext.getInstance("TLS")
+        val keyManagers = if (mode == "tls-client-cert") arrayOf(identity().keyManager()) else null
+        context.init(keyManagers, arrayOf(AcceptTvCertificate), SecureRandom())
         val socket = context.socketFactory.createSocket(raw, host, port, true) as SSLSocket
+        // Older TVs only speak older TLS versions: offer everything this phone supports.
+        try {
+          socket.enabledProtocols = socket.supportedProtocols.filter { it.startsWith("TLS") }.toTypedArray()
+        } catch (_: Exception) {
+        }
         socket.soTimeout = timeoutMs
         socket.startHandshake()
         socket.soTimeout = 0
-        return TlsConnection(socket, onData, onClose)
+        return SocketConnection(socket, onData, onClose)
       } catch (e: Exception) {
         try {
           raw.close()
@@ -105,8 +118,8 @@ class TlsConnection private constructor(
 }
 
 /**
- * The TV uses a self-signed certificate, so there is no CA to check against.
- * Pairing already ties the TV's key to the code shown on its screen.
+ * TVs use self-signed certificates, so there is no CA to check against.
+ * Each protocol ties the TV to this phone its own way (code on screen, token, PIN).
  */
 @SuppressLint("CustomX509TrustManager", "TrustAllX509TrustManager")
 private object AcceptTvCertificate : X509TrustManager {

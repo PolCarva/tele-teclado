@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { DiscoveredTv } from '../protocol/transport';
+import { driverFor, type TvInfo } from '../brands';
 import type { TvState } from '../tv/TvController';
 import { Icon } from './Icon';
 import { colors, radius, type } from './theme';
@@ -12,15 +12,13 @@ export function TvList({
   onRescan,
 }: {
   state: TvState;
-  onChoose: (tv: DiscoveredTv) => void;
+  onChoose: (tv: TvInfo) => void;
   onRescan: () => void;
 }) {
-  const { scanning, tvs } = state.scan;
+  const { scanning, deep, tvs } = state.scan;
   // Keep the current TV in the list even if it didn't answer this scan.
   const list = [...tvs];
-  if (state.host && !list.some((tv) => tv.host === state.host)) {
-    list.unshift({ name: state.tvName || state.host, host: state.host });
-  }
+  if (state.tv && !list.some((tv) => tv.host === state.host)) list.unshift(state.tv);
 
   return (
     <View style={styles.wrap}>
@@ -29,7 +27,7 @@ export function TvList({
         const live = current && (state.connection === 'ready' || state.connection === 'idle');
         return (
           <Pressable
-            key={tv.host}
+            key={`${tv.brand}|${tv.host}`}
             onPress={() => onChoose(tv)}
             style={({ pressed }) => [styles.row, current && styles.rowCurrent, pressed && styles.pressed]}
             accessibilityRole="button"
@@ -42,7 +40,9 @@ export function TvList({
               <Text style={styles.name} numberOfLines={1}>
                 {tv.name}
               </Text>
-              <Text style={styles.host}>{tv.host}</Text>
+              <Text style={styles.host} numberOfLines={1}>
+                {[driverFor(tv.brand)?.label, tv.model, tv.host].filter(Boolean).join(' · ')}
+              </Text>
             </View>
             {current ? (
               <Text style={[styles.badge, { color: live ? colors.ok : colors.muted }]}>
@@ -58,11 +58,15 @@ export function TvList({
       {scanning ? (
         <View style={styles.status}>
           <ActivityIndicator color={colors.accent} />
-          <Text style={styles.statusText}>Buscando teles en tu Wi-Fi…</Text>
+          <Text style={styles.statusText}>
+            {deep ? 'Buscando en cada dirección de tu Wi-Fi… puede tardar unos segundos.' : 'Buscando teles en tu Wi-Fi…'}
+          </Text>
         </View>
       ) : list.length === 0 ? (
         <Text style={styles.statusText}>
-          No encontré teles. Fijate que estén prendidas y conectadas a la misma Wi-Fi que el celular.
+          No encontré teles. Fijate que estén prendidas y conectadas a la misma Wi-Fi que el celular. Algunas
+          teles tienen que tener activado el control desde el celular o la red (por ejemplo, Roku: «Control por apps
+          móviles»; Sony: «Control remoto IP»).
         </Text>
       ) : null}
 
