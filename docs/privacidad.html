@@ -21,10 +21,11 @@
   <h2>Qué se guarda en tu celular</h2>
   <p>Solo en tu celular, para no tener que configurar todo cada vez:</p>
   <ul>
-    <li>La tele elegida: su nombre, marca y dirección en tu red.</li>
-    <li>Los datos de vinculación que entrega la tele (por ejemplo, un código de acceso o un certificado del celular), para que no te pida vincular de nuevo.</li>
+    <li>La tele elegida: su nombre, marca, modelo, un identificador de la tele y su dirección en tu red.</li>
+    <li>Los datos de vinculación que entrega la tele (por ejemplo, un código de acceso), para que no te pida vincular de nuevo.</li>
+    <li>Para las teles Android TV / Google TV: un certificado propio del celular, creado en el celular, con el que la tele lo reconoce.</li>
   </ul>
-  <p>Estos datos no salen del celular salvo para conectarse a tu tele. Se borran al desinstalar la app.</p>
+  <p>Estos datos no salen del celular salvo para conectarse a tu tele. Para borrarlos, usá <em>Avanzado → Volver a vincular</em> o desinstalá la app. En iPhone, el certificado queda guardado en el llavero de iOS aunque desinstales la app, hasta que uses <em>Volver a vincular</em>.</p>
 
   <h2>Permisos</h2>
   <ul>
@@ -43,7 +44,7 @@
     <h2>Privacy policy (English)</h2>
     <p><strong>Teclado TV does not collect, store on servers, or share any personal data.</strong> It has no accounts, ads, analytics or tracking.</p>
     <p>The app connects directly to your TV over your home Wi-Fi (local network) to send it the text you type, and searches that network for TVs (Bonjour/mDNS, SSDP and connections to each brand's ports). This traffic goes from the phone to the TV only, never through our servers or any third party.</p>
-    <p>Stored only on your phone: the chosen TV (name, brand, local address) and the pairing data the TV issues (an access token or the phone's certificate), so you don't have to pair again. They are deleted when you uninstall the app.</p>
+    <p>Stored only on your phone: the chosen TV (name, brand, model, a TV identifier and its local address), the pairing data the TV issues (an access token), and for Android TV / Google TV a certificate created on the phone, so you don't have to pair again. To delete them use Avanzado → Volver a vincular, or uninstall the app; on iPhone the certificate stays in the iOS Keychain after uninstalling, until you use Volver a vincular.</p>
     <p>Permissions: local network (iPhone) and Wi-Fi/network state (Android), only to find and connect to the TV. No location, contacts, camera, microphone or photos.</p>
     <p>Contact: <a href="https://github.com/PolCarva/tele-teclado/issues">github.com/PolCarva/tele-teclado/issues</a>.</p>
   </section>

@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { ICON_PATHS } from '../tv/appIcons';
@@ -19,9 +19,22 @@ const ICONS: Record<TargetId, IconStyle> = {
   enter: { bg: '#2A303B', fg: '#F2F4F7', path: ENTER_PATH },
 };
 
-/** Rounded square with the app's logo, in the app's colors. */
+// The App Store build shows neutral initials instead of the apps' logos and colors: App Review
+// can flag third-party logos (guideline 5.2.1). The names next to them still say which app it is.
+const NEUTRAL = { bg: '#2A303B', fg: '#F2F4F7' };
+const INITIALS: Record<TargetId, IconStyle> = {
+  youtube: { ...NEUTRAL, text: 'Y' },
+  netflix: { ...NEUTRAL, text: 'N' },
+  prime: { ...NEUTRAL, text: 'P' },
+  disney: { ...NEUTRAL, text: 'D' },
+  max: { ...NEUTRAL, text: 'M' },
+  stremio: { ...NEUTRAL, text: 'S' },
+  enter: ICONS.enter,
+};
+
+/** Rounded square with the app's logo, in the app's colors (initials on iPhone). */
 export function AppIcon({ id, size = 36 }: { id: TargetId; size?: number }) {
-  const icon = ICONS[id];
+  const icon = (Platform.OS === 'ios' ? INITIALS : ICONS)[id];
   const glyph = size * (icon.scale ?? 0.6);
   return (
     <View

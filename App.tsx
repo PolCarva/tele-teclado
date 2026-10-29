@@ -7,7 +7,9 @@ import type { TvState } from './src/tv/TvController';
 import { tv, useTv } from './src/tv/useTv';
 import { Backdrop } from './src/ui/Backdrop';
 import { Icon } from './src/ui/Icon';
+import { ManualAddress } from './src/ui/ManualAddress';
 import { PairingView } from './src/ui/PairingView';
+import { PrivacyLink } from './src/ui/PrivacyLink';
 import { TvList } from './src/ui/TvList';
 import { TvSheet } from './src/ui/TvSheet';
 import { TypingView } from './src/ui/TypingView';
@@ -85,16 +87,23 @@ function Header({ state, onPress }: { state: TvState; onPress: () => void }) {
   );
 }
 
-/** First run: pick the TV from the ones on the Wi-Fi. */
+/** First run: pick the TV from the ones on the Wi-Fi, or type its address. */
 function ChooseTv({ state }: { state: TvState }) {
+  const found = state.scan.tvs.length > 0;
   return (
     <View style={styles.choose}>
       <Text style={styles.brand}>Teclado TV</Text>
       <View style={styles.chooseTitles}>
         <Text style={styles.title}>Elegí tu tele</Text>
-        <Text style={styles.subtitle}>Estas son las teles que encontré en tu Wi-Fi.</Text>
+        <Text style={styles.subtitle}>
+          {found
+            ? 'Estas son las teles que encontré en tu Wi-Fi.'
+            : 'Escribí en la tele con el teclado del celular. Busco tu tele en la Wi-Fi: Android TV / Google TV, Samsung, LG, Roku, Sony o Panasonic.'}
+        </Text>
       </View>
-      <TvList state={state} onChoose={(found) => tv.chooseTv(found)} onRescan={() => void tv.scanTvs({ deep: true })} />
+      <TvList state={state} onChoose={(chosen) => tv.chooseTv(chosen)} onRescan={() => void tv.scanTvs({ deep: true })} />
+      <ManualAddress state={state} label="¿No aparece? Escribí la dirección IP de la tele (la ves en su configuración de red)." />
+      <PrivacyLink />
     </View>
   );
 }

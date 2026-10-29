@@ -16,21 +16,23 @@
           "_androidtvremote2._tcp",
           "_samsungmsf._tcp",
           "_googlecast._tcp",
-          "_airplay._tcp",
-          "_companion-link._tcp",
-          "_raop._tcp"
+          "_airplay._tcp"
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "CFBundleDevelopmentRegion": "es",
+        "CFBundleLocalizations": [
+          "es"
+        ]
       },
       "buildNumber": "4"
     },
     "android": {
       "package": "com.pablocarvalho.tecladotv",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#2F6BFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
