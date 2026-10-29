@@ -1,0 +1,22 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleTeamId": "JZ9HBXGNK9",
+        "ascApiKeyPath": "$HOME/.appstoreconnect/private_keys/AuthKey_A8PSU8WY52.p8",
+        "ascApiKeyId": "A8PSU8WY52",
+        "ascApiKeyIssuerId": "4fc741c2-61ca-4720-92a4-8c783c44b528",
+        "ascAppId": "6826423999"
+      }
+    }
+  }
+}

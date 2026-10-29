@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["TvRemoteModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.tvremote.TvRemoteModule"]
+  }
+}

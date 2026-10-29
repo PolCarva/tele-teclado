@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "Teclado TV",
+    "slug": "tele-teclado",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0C10",
+    "ios": {
+      "bundleIdentifier": "com.pablocarvalho.tecladotv",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Para escribir en la tele, la app se conecta a ella por la Wi-Fi de tu casa.",
+        "NSBonjourServices": [
+          "_androidtvremote2._tcp"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.pablocarvalho.tecladotv",
+      "adaptiveIcon": {
+        "backgroundColor": "#2F6BFF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "softwareKeyboardLayoutMode": "resize",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "800b606c-3db6-4a8b-9d99-235ebb8bbac8"
+      }
+    },
+    "owner": "pablo-carvalho"
+  }
+}
