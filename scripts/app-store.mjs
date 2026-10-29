@@ -111,7 +111,11 @@ async function listing() {
 
 async function priceAndAvailability() {
   // Free, in every territory.
-  const hasSchedule = await api('GET', `/v1/apps/${app}/appPriceSchedule`).then(() => true, () => false);
+  // Apple returns an (empty) schedule even before a price is set: look for actual prices.
+  const hasSchedule = await api('GET', `/v1/apps/${app}/appPriceSchedule?include=manualPrices`).then(
+    (r) => (r.data?.relationships?.manualPrices?.data?.length ?? 0) > 0,
+    () => false,
+  );
   if (!hasSchedule) {
     const points = await api('GET', `/v1/apps/${app}/appPricePoints?filter[territory]=USA&limit=10`);
     const free = points.data.find((p) => Number(p.attributes.customerPrice) === 0);
@@ -198,7 +202,9 @@ async function build(number) {
 }
 
 async function status() {
-  const version = await editableVersion();
+  // The newest version, whatever its state (don't create one just to look).
+  const { data: versions } = await api('GET', `/v1/apps/${app}/appStoreVersions?filter[platform]=IOS&limit=1`);
+  const version = versions[0];
   const v = version.attributes;
   console.log(`version ${v.versionString}: ${v.appStoreState}`);
   const b = (await api('GET', `/v1/appStoreVersions/${version.id}/build`)).data;
@@ -216,7 +222,9 @@ async function submit() {
   const version = await editableVersion();
   const pending = (await api('GET', `/v1/reviewSubmissions?filter[app]=${app}&filter[platform]=IOS&filter[state]=READY_FOR_REVIEW`)).data[0];
   const submission = pending ?? (await api('POST', '/v1/reviewSubmissions', { data: { type: 'reviewSubmissions', attributes: { platform: 'IOS' }, relationships: { app: ref('apps', app) } } })).data;
-  if (!pending) {
+  // A submission left over from a failed attempt may be empty: add the version if it isn't in it.
+  const items = pending ? (await api('GET', `/v1/reviewSubmissions/${submission.id}/items?include=appStoreVersion`)).data : [];
+  if (!items.some((i) => i.relationships?.appStoreVersion?.data?.id === version.id)) {
     await api('POST', '/v1/reviewSubmissionItems', { data: { type: 'reviewSubmissionItems', relationships: { reviewSubmission: ref('reviewSubmissions', submission.id), appStoreVersion: ref('appStoreVersions', version.id) } } });
   }
   await api('PATCH', `/v1/reviewSubmissions/${submission.id}`, { data: { type: 'reviewSubmissions', id: submission.id, attributes: { submitted: true } } });
