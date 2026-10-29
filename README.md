@@ -110,4 +110,4 @@ Lo de las demás marcas viene de la investigación de protocolos (resumida en lo
 - **Sony / Panasonic:** si las tildes llegan intactas no está confirmado en todos los modelos.
 - **Roku:** la escritura necesita el modo "Activado"; en "Limitado" (el valor por defecto en varios modelos nuevos) la app avisa que hay que cambiar el ajuste.
 
-No se incluyeron (todavía) Vizio (solo EE.UU., sin tildes) ni Hisense VIDAA (el envío de texto no está confirmado en ningún modelo real), para no prometer una escritura que podría no funcionar.
+No se incluyeron (todavía) Hisense VIDAA, Fire TV, Apple TV, Vizio ni las Philips sin Android, para no prometer una escritura que podría no funcionar: en `research/otras-plataformas.md` está qué se sabe de cada una y qué prueba con una tele real las destrabaría.
