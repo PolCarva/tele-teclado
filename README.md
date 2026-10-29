@@ -36,7 +36,7 @@ Queda vinculada; no hay que repetirlo salvo que borres la app o resetees la tele
 
 ## Instalar
 
-**iPhone (TestFlight):** la app se distribuye por TestFlight con distribución automática: cada versión nueva que sube EAS les llega a la app **TestFlight**. La primera vez iOS pide permiso para buscar dispositivos en la red local: hay que aceptarlo.
+**iPhone:** en la App Store (enviada a revisión de Apple; mientras tanto, por **TestFlight**). La primera vez iOS pide permiso para buscar dispositivos en la red local: hay que aceptarlo.
 
 **Android:** el instalador está en las [releases del repositorio](https://github.com/PolCarva/tele-teclado/releases) (`Teclado-TV.apk`). Localmente queda en `dist/Teclado-TV.apk`.
 
@@ -94,7 +94,11 @@ iPhone con EAS (cuenta Expo `pablo-carvalho`, proyecto `tele-teclado`; las crede
 eas build -p ios --profile production --auto-submit
 ```
 
-Compila en la nube y sube la versión a TestFlight. Para el simulador, compilar con el equipo de Apple (`DEVELOPMENT_TEAM=JZ9HBXGNK9`), si no el simulador no le da acceso al llavero (error -34018). `ios/` y `android/` se generan con `npx expo prebuild`; CocoaPods necesita `LANG=en_US.UTF-8`.
+Compila en la nube y sube la versión a TestFlight. Sin EAS, `scripts/build-ios.sh` compila con Xcode en la Mac y sube la build con la misma clave de App Store Connect (antes, subí `ios.buildNumber` en `app.json`).
+
+Ficha de la App Store: el texto, las URLs, la clasificación por edad y las notas para la revisión de Apple están en `store/app-store.json`, y las capturas en `store/screenshots/`. Se suben con `node scripts/app-store.mjs listing|screenshots`, se elige la build con `build`, se revisa con `status` y se manda a revisión con `submit`. La ayuda y la política de privacidad son `docs/` (GitHub Pages: https://polcarva.github.io/tele-teclado/).
+
+Para el simulador, compilar con el equipo de Apple (`DEVELOPMENT_TEAM=JZ9HBXGNK9`), si no el simulador no le da acceso al llavero (error -34018). `ios/` y `android/` se generan con `npx expo prebuild`; CocoaPods necesita `LANG=en_US.UTF-8`.
 
 ### Cómo se comporta cada tele
 
