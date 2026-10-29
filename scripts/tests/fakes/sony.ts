@@ -3,7 +3,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-export async function fakeSony(options: { pin?: string; name?: string; cookie?: string } = {}) {
+export async function fakeSony(options: { pin?: string; name?: string; cookie?: string; irccPath?: string } = {}) {
   const state = { field: '', keyboardOn: false, ircc: [] as string[], cookie: options.cookie ?? (null as string | null), pinsShown: 0 };
   const pin = options.pin ?? '1234';
   const authOk = (req: http.IncomingMessage) => !!state.cookie && (req.headers.cookie ?? '').includes(`auth=${state.cookie}`);
@@ -50,7 +50,8 @@ export async function fakeSony(options: { pin?: string; name?: string; cookie?: 
         return;
       }
       if (url === '/sony/appControl') {
-        if (!authOk(req)) return rpcError(res, 403, 403);
+        // Like real sets: getApplicationStatusList is auth level "none", setTextForm needs the cookie.
+        if (json.method !== 'getApplicationStatusList' && !authOk(req)) return rpcError(res, 403, 403);
         if (json.method === 'getApplicationStatusList') return rpc(res, [[{ name: 'textInput', status: state.keyboardOn ? 'on' : 'off' }]]);
         if (json.method === 'setTextForm') {
           if (!state.keyboardOn) return rpcError(res, 7);
@@ -58,8 +59,15 @@ export async function fakeSony(options: { pin?: string; name?: string; cookie?: 
           return rpc(res, [0]);
         }
       }
-      if (url === '/sony/ircc') {
+      // Some sets serve /sony/IRCC, others /sony/ircc.
+      if (url === `/sony/${options.irccPath ?? 'ircc'}`) {
         const code = /<IRCCCode>([^<]*)<\/IRCCCode>/.exec(body)?.[1] ?? '';
+        if (!code) {
+          // An empty code (the app's wake-up) gets a SOAP fault, like a real set.
+          res.writeHead(500, { 'Content-Type': 'text/xml' });
+          res.end();
+          return;
+        }
         state.ircc.push(code);
         res.writeHead(200, { 'Content-Type': 'text/xml' });
         res.end('<ok/>');

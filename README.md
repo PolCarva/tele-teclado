@@ -9,7 +9,7 @@ Habla directo con la tele por la Wi-Fi, usando el protocolo de cada marca. Funci
 - **LG** (webOS, 2014 en adelante): escribe en el campo de texto abierto.
 - **Roku** (incluye teles Roku de TCL, Hisense, Sharp…): escribe letra por letra en el campo abierto.
 - **Sony BRAVIA** sin Android (2013–2015) y como respaldo en las Android: escribe cuando la tele tiene su teclado abierto.
-- **Panasonic VIERA** (2011 en adelante, con o sin cifrado): manda el texto completo de una vez.
+- **Panasonic VIERA** con el sistema propio de Panasonic (2011 en adelante, con o sin cifrado): manda el texto completo de una vez. Las Panasonic con Android TV / Google TV funcionan como Android TV; las que traen Fire TV o TiVo (la mayoría desde 2024) no son compatibles.
 
 No necesita la Mac prendida ni nada instalado en la tele. Las marcas que no son Android TV se agregaron en base a la documentación de cada protocolo y a proyectos de código abierto; se probaron contra teles simuladas armadas desde esas fuentes, pero no contra cada modelo real.
 
@@ -19,7 +19,7 @@ No necesita la Mac prendida ni nada instalado en la tele. Las marcas que no son 
 - Abrís la app y el teclado ya está abierto. Escribís y tocás **Buscar** / **Enter** / **Enviar** (según la tele), o la tecla del teclado del celular. La cruz dentro de la caja borra lo escrito.
 - **Según la marca:**
   - **Android TV:** aparece el selector "Buscar en" con íconos (YouTube, Netflix, Prime Video, Disney+, HBO Max, Stremio, o "App abierta (Enter)"). Sigue sola a la app abierta en la tele; podés cambiarla a mano. El texto aparece en vivo mientras escribís.
-  - **Samsung, LG, Roku, Sony:** abrí un buscador o un campo de texto en la tele (por ejemplo la lupa de YouTube). Cuando la tele muestra su teclado, lo que escribís aparece ahí al instante. En Samsung, LG y Sony, si el campo ya tenía texto, la app lo trae y seguís editando.
+  - **Samsung, LG, Roku, Sony:** abrí un buscador o un campo de texto en la tele (por ejemplo la búsqueda de la tele o el navegador; en Samsung, YouTube, Netflix y Prime Video usan su propio teclado y ahí el texto no llega). Cuando la tele muestra su teclado, lo que escribís aparece ahí al instante. En Samsung, LG y Sony, si el campo ya tenía texto, la app lo trae y seguís editando.
   - **Panasonic:** no deja borrar desde el celular, así que escribís en el celular y tocás **Enviar**: el texto va completo. "Enter" confirma.
 - **Tildes y ñ:** algunas apps de Android (YouTube, HBO Max, Netflix) las descartan; ahí la app manda la letra sin tilde. En los enlaces de búsqueda y en las demás marcas las tildes sí van.
 

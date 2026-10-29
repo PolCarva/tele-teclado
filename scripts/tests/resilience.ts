@@ -180,6 +180,72 @@ export async function resilienceTests(test: Test) {
     fake.close();
   });
 
+  await test('lg: a TV that goes to standby without closing the socket is noticed (heartbeat)', async () => {
+    const net = await import('node:net');
+    const { fakeLg } = await import('./fakes/lg');
+    const { lg, lgKeepAlive } = await import('../../src/brands/lg');
+    const fake = await fakeLg({ name: 'LG' });
+    // A proxy that can stop passing bytes while keeping both sockets open: a TV in standby.
+    let blackhole = false;
+    const proxy = net.createServer((client) => {
+      const up = net.connect(fake.port, '127.0.0.1');
+      client.on('data', (d) => void (!blackhole && up.write(d)));
+      up.on('data', (d) => void (!blackhole && client.write(d)));
+      const end = () => (client.destroy(), up.destroy());
+      for (const s of [client, up]) (s.on('close', end), s.on('error', end));
+    });
+    await new Promise<void>((r) => proxy.listen(0, '127.0.0.1', r));
+    const saved = { ...lgKeepAlive };
+    Object.assign(lgKeepAlive, { everyMs: 100, maxIdleMs: 300 });
+    const transport = remapTransport({ '10.0.0.24:3001': (proxy.address() as import('node:net').AddressInfo).port });
+    const { tv, state } = controllerFor(transport, [lg]);
+    try {
+      tv.chooseTv({ brand: 'lg', host: '10.0.0.24', name: 'LG', hints: { secure: 'yes' } });
+      tv.setActive(true);
+      await eventually(() => assert.equal(state().connection, 'ready'), 5000);
+      await sleep(400); // pings get answered: still connected
+      assert.equal(state().connection, 'ready');
+      blackhole = true;
+      // Without the heartbeat the app stays 'ready' (typing into the void) until the OS gives up, minutes later.
+      await eventually(() => assert.notEqual(state().connection, 'ready'), 3000);
+      blackhole = false;
+      await eventually(() => assert.equal(state().connection, 'ready'), 8000);
+    } finally {
+      Object.assign(lgKeepAlive, saved);
+      tv.setActive(false);
+      proxy.close();
+      fake.close();
+    }
+  });
+
+  await test('lg: coming back to the app does not type the field twice', async () => {
+    const { fakeLg } = await import('./fakes/lg');
+    const { lg } = await import('../../src/brands/lg');
+    const fake = await fakeLg({ name: 'LG' });
+    const { tv, state } = controllerFor(remapTransport({ '10.0.0.25:3001': fake.port }), [lg]);
+    try {
+      tv.chooseTv({ brand: 'lg', host: '10.0.0.25', name: 'LG', hints: { secure: 'yes' } });
+      tv.setActive(true);
+      await eventually(() => assert.equal(state().connection, 'ready'), 5000);
+      fake.openKeyboard();
+      await eventually(() => assert.equal(state().tvKeyboard, true));
+      tv.setText('hola');
+      await eventually(() => assert.equal(fake.state.field, 'hola'));
+      // Background and back: the new session re-subscribes and the TV says the field is still focused.
+      tv.setActive(false);
+      tv.setActive(true);
+      await eventually(() => assert.equal(state().connection, 'ready'), 5000);
+      await sleep(200);
+      tv.setText('hola!');
+      await eventually(() => assert.equal(fake.state.field, 'hola!'));
+      await sleep(150);
+      assert.equal(fake.state.field, 'hola!');
+    } finally {
+      tv.setActive(false);
+      fake.close();
+    }
+  });
+
   await test('samsung: cancelling the pairing closes the socket right away', async () => {
     const { fakeSamsung } = await import('./fakes/samsung');
     const { samsung } = await import('../../src/brands/samsung');

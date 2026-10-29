@@ -173,6 +173,10 @@ function hintFor(state: TvState): string {
   if (state.compose) {
     return `Abrí un buscador o un campo de texto en la tele. Escribí acá y tocá «Enviar»: ${state.brandLabel || 'esta tele'} no deja borrar desde el celular, así que el texto va completo de una vez.`;
   }
+  if (state.tv?.brand === 'samsung' && state.tvKeyboard !== true) {
+    // On Samsung, YouTube, Netflix and Prime Video draw their own keyboard, which ignores remote text.
+    return 'Abrí la búsqueda de la tele, el navegador o un campo de Ajustes: cuando aparezca el teclado de la tele, lo que escribas acá aparece ahí. YouTube, Netflix y Prime Video usan su propio teclado y no reciben texto.';
+  }
   if (!state.appLinks && state.tvKeyboard === false) {
     return 'Abrí un buscador o un campo de texto en la tele: cuando aparezca su teclado, lo que escribas acá aparece ahí.';
   }

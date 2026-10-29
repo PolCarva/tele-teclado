@@ -4,7 +4,7 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 export async function fakeRoku(options: { mode?: 'enabled' | 'limited' | 'disabled'; name?: string } = {}) {
-  const mode = options.mode ?? 'enabled';
+  let mode = options.mode ?? 'enabled';
   const state = { field: '', keys: [] as string[] };
   const blocked = (res: http.ServerResponse) => {
     if (mode === 'disabled') {
@@ -52,5 +52,13 @@ export async function fakeRoku(options: { mode?: 'enabled' | 'limited' | 'disabl
     res.end();
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
-  return { port: (server.address() as AddressInfo).port, state, close: () => server.close() };
+  return {
+    port: (server.address() as AddressInfo).port,
+    state,
+    /** The user changes "Control by mobile apps" on the TV. */
+    setMode: (next: typeof mode) => {
+      mode = next;
+    },
+    close: () => server.close(),
+  };
 }

@@ -70,8 +70,8 @@ class RokuSession implements TvSession {
     this.enqueue(async () => {
       if (this.closed) return;
       const response = await httpRequest(this.transport, { method: 'POST', url: `${base(this.host)}${path}`, body: '', timeoutMs: 4000 }).catch(() => null);
-      // 403 "not allowed in Limited mode": the setting changed under us.
-      if (response && response.status === 403) this.onBlocked();
+      // 401 (Disabled) / 403 (Limited): the setting changed under us.
+      if (response && (response.status === 401 || response.status === 403)) this.onBlocked();
     });
   }
 
@@ -127,6 +127,10 @@ export const roku: Driver = {
   },
 
   async connect(tv, _credentials, events, ctx) {
+    // Roku answers 403 to a Host header that isn't an IP address (DNS-rebinding protection).
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(tv.host) && !tv.host.includes(':')) {
+      throw new TvSetupNeeded('Para Roku escribí la dirección IP de la tele (por ejemplo 192.168.0.10), no su nombre.');
+    }
     // Check the TV takes commands from the phone, with a harmless read: /query/apps is 403 in
     // "Limited" mode and 401 when control is disabled, but keypress/typing need it to be 200.
     const probe = await httpRequest(ctx.transport, { url: `${base(tv.host)}/query/apps`, timeoutMs: 4000, headers: { Accept: 'text/xml' } }).catch(() => null);

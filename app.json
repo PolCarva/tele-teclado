@@ -28,11 +28,11 @@
           "es"
         ]
       },
-      "buildNumber": "4"
+      "buildNumber": "5"
     },
     "android": {
       "package": "com.pablocarvalho.tecladotv",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#2F6BFF",
         "foregroundImage": "./assets/android-icon-foreground.png",

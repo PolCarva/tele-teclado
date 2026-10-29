@@ -65,7 +65,7 @@ function tvOpen(k: Keys, b64: string): string {
 const tag = (xml: string, name: string) => new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(xml)?.[1];
 const unescape = (t: string) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 
-export async function fakePanasonic(options: { encrypted: boolean; pin?: string }) {
+export async function fakePanasonic(options: { encrypted: boolean; pin?: string; forbidPosts?: boolean }) {
   const state = {
     field: '',
     keys: [] as string[],
@@ -105,6 +105,12 @@ export async function fakePanasonic(options: { encrypted: boolean; pin?: string 
         res.writeHead(200, { 'Content-Type': 'text/xml' });
         const actions = ['X_SendKey', 'X_SendString', 'X_GetInputMode', ...(options.encrypted ? ['X_DisplayPinCode', 'X_RequestAuth', 'X_GetEncryptSessionId', 'X_EncryptedCommand'] : [])];
         res.end(`<scpd><actionList>${actions.map((a) => `<action><name>${a}</name></action>`).join('')}</actionList></scpd>`);
+        return;
+      }
+      // A phone on another subnet: real TVs serve the GETs above but refuse every SOAP POST with 403.
+      if (options.forbidPosts && req.method === 'POST') {
+        res.writeHead(403);
+        res.end();
         return;
       }
       if (req.method !== 'POST' || req.url !== '/nrc/control_0') {

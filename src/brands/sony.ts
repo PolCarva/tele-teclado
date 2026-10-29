@@ -124,6 +124,12 @@ function clientId(ctx: DriverContext): string {
   return store.clientId ?? (store.clientId = `TecladoTV:${randomUuid(ctx)}`);
 }
 
+/** The PIN this run's client id was registered with on each TV, for a re-pair the TV answers without one. */
+function runPins(ctx: DriverContext): Record<string, string> {
+  const store = ctx as unknown as { sonyPins?: Record<string, string> };
+  return (store.sonyPins ??= {});
+}
+
 function randomUuid(ctx: DriverContext): string {
   const b = ctx.transport.randomBytes?.(16) ?? Uint8Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
   b[6] = (b[6] & 0x0f) | 0x40;
@@ -134,6 +140,24 @@ function randomUuid(ctx: DriverContext): string {
 
 function authFrom(credentials: Credentials | null): Auth {
   return { psk: credentials?.psk || undefined, cookie: credentials?.cookie || undefined };
+}
+
+/** accessControl.actRegister for `clientid`, with Basic ":pin" when given. Never sends a cookie. */
+function actRegister(transport: Transport, tv: TvInfo, clientid: string, pin: string | undefined, timeoutMs: number): Promise<HttpResponse> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json; charset=UTF-8' };
+  if (pin !== undefined) h.Authorization = `Basic ${base64Encode(utf8Encode(`:${pin}`))}`;
+  return httpRequest(transport, {
+    method: 'POST',
+    url: `${scheme(tv)}://${tv.host}/sony/accessControl`,
+    headers: h,
+    body: JSON.stringify({
+      method: 'actRegister',
+      id: 1,
+      version: '1.0',
+      params: [{ clientid, nickname: 'Teclado TV', level: 'private' }, [{ value: 'yes', function: 'WOL' }]],
+    }),
+    timeoutMs,
+  });
 }
 
 /** Pull the auth=... token from a Set-Cookie header. */
@@ -152,6 +176,8 @@ class SonySession implements TvSession {
   /** Consecutive failed polls, and an in-flight guard so a slow/dead TV can't stack sockets. */
   private failures = 0;
   private polling = false;
+  private irccPath = 'ircc';
+  private lastIrccAt = 0;
 
   constructor(
     private transport: Transport,
@@ -194,7 +220,16 @@ class SonySession implements TvSession {
   }
 
   updateText(_before: string, after: string) {
-    this.enqueue(() => rpc(this.transport, this.tv, 'appControl', 'setTextForm', [after], this.auth));
+    this.enqueue(() =>
+      rpc(this.transport, this.tv, 'appControl', 'setTextForm', [after], this.auth).catch((e) => {
+        // The keyboard poll is auth level "none", so a dead cookie first shows up here.
+        if (e instanceof PairingRequired && !this.closed) {
+          this.close();
+          this.events.onClose('needs_pairing');
+        }
+        throw e;
+      }),
+    );
   }
 
   submit() {
@@ -206,16 +241,31 @@ class SonySession implements TvSession {
   }
 
   private async ircc(code: string) {
-    const body =
-      `<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">` +
-      `<s:Body><u:X_SendIRCC xmlns:u="${IRCC_SERVICE}"><IRCCCode>${code}</IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>`;
-    await httpRequest(this.transport, {
-      method: 'POST',
-      url: `${scheme(this.tv)}://${this.tv.host}/sony/ircc`,
-      headers: headers(this.auth, { 'Content-Type': 'text/xml; charset=UTF-8', SOAPACTION: `"${IRCC_SERVICE}#X_SendIRCC"` }),
-      body,
-      timeoutMs: 5000,
-    }).catch(() => {});
+    const send = (c: string) =>
+      httpRequest(this.transport, {
+        method: 'POST',
+        url: `${scheme(this.tv)}://${this.tv.host}/sony/${this.irccPath}`,
+        headers: headers(this.auth, { 'Content-Type': 'text/xml; charset=UTF-8', SOAPACTION: `"${IRCC_SERVICE}#X_SendIRCC"` }),
+        body:
+          `<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">` +
+          `<s:Body><u:X_SendIRCC xmlns:u="${IRCC_SERVICE}"><IRCCCode>${c}</IRCCCode></u:X_SendIRCC></s:Body></s:Envelope>`,
+        timeoutMs: 5000,
+      });
+    // Some sets only answer /sony/IRCC, others only /sony/ircc (HA core#86132, #84557).
+    const swap = () => (this.irccPath = this.irccPath === 'ircc' ? 'IRCC' : 'ircc');
+    try {
+      if (Date.now() - this.lastIrccAt > 10 * 60_000) {
+        // Some sets ignore the first IRCC after ~15 min without one (python-bravia-tv#15): wake them up with an empty code.
+        if ((await send('').catch(() => null))?.status === 404) swap();
+      }
+      this.lastIrccAt = Date.now();
+      if ((await send(code)).status === 404) {
+        swap();
+        await send(code);
+      }
+    } catch {
+      // network error: nothing to do
+    }
     void escapeXml;
   }
 
@@ -269,33 +319,34 @@ export const sony: Driver = {
   async connect(tv, credentials, events, ctx) {
     const auth = authFrom(credentials);
     if (!auth.psk && !auth.cookie) throw new PairingRequired();
-    // Confirm the credentials still work (and the TV is reachable).
+    let saved: Credentials | undefined;
+    if (!auth.psk && credentials?.clientId && credentials.pin) {
+      // The cookie lasts 14 days (Max-Age=1209600): re-register with the saved PIN on every connect,
+      // as pybravia/Home Assistant do. Never send the old cookie here (an expired one gets 401).
+      const r = await actRegister(ctx.transport, tv, credentials.clientId, credentials.pin, 5000);
+      if (r.status === 401 || r.status === 403) throw new PairingRequired();
+      const fresh = r.status === 200 ? cookieFrom(r) : undefined;
+      if (fresh) saved = { cookie: (auth.cookie = fresh) };
+    }
+    // Confirm the TV is reachable (this method is auth level "none": a bad cookie shows up on setTextForm).
     await rpc(ctx.transport, tv, 'appControl', 'getApplicationStatusList', [], auth);
     const session = new SonySession(ctx.transport, tv, auth, events);
-    return { session };
+    return { session, saved };
   },
 
   async startPairing(tv, ctx): Promise<PairingFlow> {
     const id = clientId(ctx);
-    const nickname = `Teclado TV`;
-    const body = (extraAuth?: Record<string, string>) =>
-      httpRequest(ctx.transport, {
-        method: 'POST',
-        url: `${scheme(tv)}://${tv.host}/sony/accessControl`,
-        headers: extraAuth ? { 'Content-Type': 'application/json; charset=UTF-8', ...extraAuth } : { 'Content-Type': 'application/json; charset=UTF-8' },
-        body: JSON.stringify({
-          method: 'actRegister',
-          id: 1,
-          version: '1.0',
-          params: [
-            { clientid: id, nickname, level: 'private' },
-            [{ value: 'yes', function: 'WOL' }],
-          ],
-        }),
-        timeoutMs: 8000,
-      });
-    // First call with no auth: the TV shows the PIN and answers 401.
-    await body().catch(() => undefined);
+    // First call with no auth: a TV that doesn't know this id shows the PIN and answers 401.
+    // Network errors propagate (the controller says it couldn't ask the TV for a code).
+    const first = await actRegister(ctx.transport, tv, id, undefined, 8000);
+    const known = first.status === 200 ? cookieFrom(first) : undefined;
+    if (known) {
+      // The TV already knows this id (e.g. "Volver a vincular" in the same run): no PIN, cookie now.
+      // Keep the PIN this id was registered with on this TV (this run), so the 14-day cookie is still
+      // renewed; '' if unknown, so a PIN saved for another client id is never reused.
+      const saved = { cookie: known, clientId: id, pin: runPins(ctx)[tv.id ?? tv.host] ?? '' };
+      return { prompt: { kind: 'accept', title: 'Vinculá tu celular', message: 'Conectando…' }, accepted: Promise.resolve(saved), cancel() {}, onClose() {} };
+    }
     return {
       prompt: {
         kind: 'code',
@@ -305,13 +356,14 @@ export const sony: Driver = {
         message: `Escribí el código de 4 números que aparece en ${tv.name || 'la tele'}. Si no aparece, activá en la tele el control remoto por red (Ajustes → Red → Control remoto).`,
       },
       async submit(code): Promise<Credentials> {
-        const basic = base64Encode(utf8Encode(`:${code}`));
-        const response = await body({ Authorization: `Basic ${basic}` });
+        const response = await actRegister(ctx.transport, tv, id, code, 8000);
         if (response.status === 401 || response.status === 403) throw new PairingError('Ese código no coincide. Fijate en la tele.', 'bad_code');
         if (response.status !== 200) throw new PairingError('La tele no aceptó el código.', 'rejected');
         const cookie = cookieFrom(response);
         if (!cookie) throw new PairingError('La tele no dio una sesión. Probá de nuevo.', 'rejected');
-        return { cookie, clientId: id };
+        // The PIN is kept to renew the 14-day cookie (pybravia/HA re-register with it on every connect).
+        runPins(ctx)[tv.id ?? tv.host] = code;
+        return { cookie, clientId: id, pin: code };
       },
       cancel() {},
       onClose() {},

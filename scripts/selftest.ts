@@ -15,6 +15,9 @@ import { TvController } from '../src/tv/TvController';
 import { brandTests, brandTests2, brandTests3 } from './tests/brands';
 import { netTests } from './tests/net';
 import { resilienceTests } from './tests/resilience';
+import { samsungRealTests } from './tests/samsungReal';
+import { realReportsTests } from './tests/realReports';
+import { sonyRealTests } from './tests/sonyReal';
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -255,6 +258,9 @@ async function main() {
   await brandTests2(asyncTest);
   await brandTests3(asyncTest);
   await resilienceTests(asyncTest);
+  await samsungRealTests(asyncTest);
+  await sonyRealTests(asyncTest);
+  await realReportsTests(asyncTest);
   console.log(`\n${passed} tests passed`);
   process.exit(0);
 }

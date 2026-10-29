@@ -407,8 +407,13 @@ export class TvController {
   /** Type into the TV as you go only when the text is for the app that's open (or for "Enter"). */
   private typesLive(): boolean {
     if (this.state.compose) return false;
-    // TVs that report keyboard state: only type while their keyboard is open.
-    if (this.state.reportsKeyboard) return this.state.tvKeyboard === true;
+    // TVs that report keyboard state: type while it's open. While unknown (just connected), TVs that
+    // replace the whole field get the text anyway: a keyboard opened before we connected may never be
+    // announced to us, and with no field focused the TV ignores it (what samsungtvws & co. rely on).
+    // Inserting TVs (LG) wait: sending twice there would duplicate the text.
+    if (this.state.reportsKeyboard) {
+      return this.state.tvKeyboard === true || (this.state.tvKeyboard === null && this.session?.textMode === 'replace');
+    }
     if (!this.state.appLinks) return true;
     const { target, tvApp } = this.state;
     return target === 'enter' || !!appById(target)?.packages.includes(tvApp);
@@ -579,8 +584,9 @@ export class TvController {
   private onKeyboard({ visible, text }: { visible: boolean; text?: string }) {
     const wasOpen = this.state.tvKeyboard;
     if (!visible) {
-      // The field was confirmed or left: the next one starts empty.
-      if (wasOpen) this.clearText();
+      // The field was confirmed or left: the next one starts empty. On replace-mode TVs we may have been
+      // typing into it before its keyboard was announced (state unknown), so that counts too.
+      if (wasOpen || (wasOpen === null && this.driver?.textMode === 'replace')) this.clearText();
       this.update({ tvKeyboard: false });
       return;
     }
@@ -742,8 +748,9 @@ export class TvController {
       } else {
         this.update({ pairing: { phase: 'waiting_code', error: null, prompt: flow.prompt } });
       }
-    } catch {
-      this.update({ pairing: { phase: 'failed', error: 'No pude pedirle el código a la tele. ¿Está prendida?', prompt: null } });
+    } catch (e) {
+      const error = e instanceof TvSetupNeeded ? e.message : 'No pude pedirle el código a la tele. ¿Está prendida?';
+      this.update({ pairing: { phase: 'failed', error, prompt: null } });
     } finally {
       this.pairingBusy = false;
     }
@@ -804,6 +811,10 @@ export class TvController {
     this.opening = false;
     this.clearConnectWatchdog();
     session?.close();
+    // A stale "closed" would block typing on the next session (a field may open meanwhile). Only for
+    // TVs that replace the whole field: forgetting "open" on an inserting TV (LG) would re-type it all
+    // when it re-announces the field, and LG reports the real state on reconnect anyway.
+    if (this.state.tvKeyboard === false && this.driver?.textMode === 'replace') this.update({ tvKeyboard: null });
   }
 
   private clearTimers() {

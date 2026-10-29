@@ -16,6 +16,7 @@ import {
   escapeXml,
   PairingError,
   PairingRequired,
+  TvSetupNeeded,
   xmlTag,
   type Credentials,
   type Driver,
@@ -99,6 +100,11 @@ const KEYS: Record<NavKey, string> = {
 };
 
 const controlUrl = (host: string) => `http://${host}:${PANASONIC_PORT}/nrc/control_0`;
+
+/** Real TVs answer GETs from any subnet but refuse every SOAP POST from another subnet with 403. */
+const FORBIDDEN =
+  'La tele no acepta comandos de este celular. Conectalo a la misma red que la tele (no la de invitados ni otra red del router) y fijate que en la tele esté activado Menú → Red → Ajustes de la app TV Remote.';
+const forbidden = (e: unknown) => e instanceof SoapError && e.status === 403;
 
 /** Reads /nrc/ddd.xml; null if it isn't a VIERA. */
 async function describe(transport: Transport, host: string): Promise<TvInfo | null> {
@@ -258,6 +264,7 @@ export const panasonic: Driver = {
       try {
         await client.run(() => client.openSession());
       } catch (e) {
+        if (forbidden(e)) throw new TvSetupNeeded(FORBIDDEN);
         // The TV no longer knows our key (reset, or it was paired with another phone).
         if (e instanceof SoapError) throw new PairingRequired();
         throw e;
@@ -265,11 +272,17 @@ export const panasonic: Driver = {
     } else {
       // Plain TVs: make sure it's there (the description answers even with the screen off).
       const response = await httpRequest(ctx.transport, { url: `http://${tv.host}:${PANASONIC_PORT}/nrc/ddd.xml`, timeoutMs: 3000 });
-      if (response.status === 403) throw new Error('La tele rechaza conexiones de otra red');
+      if (response.status === 403) throw new TvSetupNeeded(FORBIDDEN);
+      // ...and that it takes our commands: from another subnet the GET works but every POST gets 403
+      // (panasonic-viera#19, vieramatic#21). X_GetInputMode only reads; any other answer is fine here.
+      const probe = await soapCall(ctx.transport, controlUrl(tv.host), NRC, 'X_GetInputMode', '', { timeoutMs: 3000 }).catch((e: unknown) => e);
+      if (forbidden(probe)) throw new TvSetupNeeded(FORBIDDEN);
     }
     const session: VieraSession = new VieraSession(client, (error) => {
       events.onDebug?.(`panasonic: ${String(error)}`);
-      if (error instanceof SoapError) return; // the TV said no to this command; keep the session
+      // The TV said no to this command: keep the session. A 403 (refused from another subnet) closes
+      // it, and the reconnect explains what to change.
+      if (error instanceof SoapError && !forbidden(error)) return;
       if (!session.closed) {
         session.close();
         events.onClose('network', String(error));
@@ -283,7 +296,9 @@ export const panasonic: Driver = {
     let closeListener: (() => void) | null = null;
     let cancelled = false;
     const requestPin = async () => {
-      const body = await soapCall(ctx.transport, url, NRC, 'X_DisplayPinCode', `<X_DeviceName>${escapeXml(ctx.clientName)}</X_DeviceName>`);
+      const body = await soapCall(ctx.transport, url, NRC, 'X_DisplayPinCode', `<X_DeviceName>${escapeXml(ctx.clientName)}</X_DeviceName>`).catch((e: unknown) => {
+        throw forbidden(e) ? new TvSetupNeeded(FORBIDDEN) : e;
+      });
       const challenge = xmlTag(body, 'X_ChallengeKey');
       if (!challenge) throw new Error('La tele no mostró un código');
       return base64Decode(challenge);

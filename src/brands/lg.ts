@@ -54,6 +54,9 @@ const POINTER_KEYS: Record<NavKey, string> = {
 };
 
 /** A WebSocket speaking SSAP: request/response by id, plus subscriptions. */
+/** Heartbeat timing (tests shorten it). */
+export const lgKeepAlive = { everyMs: 10_000, maxIdleMs: 15_000 };
+
 class SsapSocket {
   private ws: WebSocketClient;
   private nextId = 0;
@@ -65,6 +68,19 @@ class SsapSocket {
   /** Rejects an in-flight register() when the socket closes, instead of waiting out its timer. */
   private registerReject: ((e: Error) => void) | null = null;
   private helloListener: ((payload: Record<string, unknown>) => void) | null = null;
+  private aliveTimer: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * A TV going to standby doesn't always close the socket (lgtv2's README), so ping it like lgtv2 and
+   * aiowebostv do, and drop the socket when nothing (not even a pong) came back for a while.
+   */
+  keepAlive() {
+    if (this.aliveTimer) return;
+    this.aliveTimer = setInterval(() => {
+      if (Date.now() - this.ws.lastReceivedAt > lgKeepAlive.maxIdleMs) this.ws.close();
+      else this.ws.ping();
+    }, lgKeepAlive.everyMs);
+  }
 
   constructor(ws: WebSocketClient) {
     this.ws = ws;
@@ -76,6 +92,8 @@ class SsapSocket {
 
   /** The socket closed: fail everything in flight so callers don't sit on their own timeouts. */
   private handleClose(error: string | null) {
+    if (this.aliveTimer) clearInterval(this.aliveTimer);
+    this.aliveTimer = null;
     for (const waiter of this.waiting.values()) {
       clearTimeout(waiter.timer);
       waiter.reject(new Error(error ?? 'La tele cerró la conexión'));
@@ -366,11 +384,11 @@ export const lg: Driver = {
     session.pointerTransport = ctx.transport;
     socket.onClose = (error) => {
       if (!session.closed) {
-        session.closed = true;
-        session.ready = false;
+        session.close(); // also closes the pointer socket, which would otherwise outlive the session
         events.onClose('network', error);
       }
     };
+    socket.keepAlive();
     await session.connectPointer();
     const saved = key !== clientKey ? { clientKey: key, secure: secure ? 'yes' : 'no' } : undefined;
     return { session, saved };

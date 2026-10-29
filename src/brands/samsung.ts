@@ -75,6 +75,13 @@ class SamsungSession implements TvSession {
   closed = false;
   /** True while the TV reports its keyboard open. */
   private imeOpen = false;
+  /** imeStart's data ("password", "url"…) and whether the next imeUpdate is the field's starting text. */
+  private imeKind = '';
+  private firstUpdate = false;
+  /** The first imeUpdate after imeStart (the field's starting text) hasn't come yet. */
+  private awaitingStart = false;
+  /** Texts we wrote into this field since imeStart, to tell the TV's echoes from edits made on the TV. */
+  private written: string[] = [];
 
   constructor(
     private ws: WebSocketClient,
@@ -86,6 +93,10 @@ class SamsungSession implements TvSession {
   }
 
   updateText(_before: string, after: string) {
+    // From now on the field's next imeUpdate shows its text from before our write, or our echo: not news.
+    this.firstUpdate = false;
+    this.written.push(after);
+    if (this.written.length > 64) this.written.shift();
     // Replace the whole field. Samsung's own app announces typing once per session, then sends the string.
     this.send({ method: 'ms.channel.emit', params: { event: 'custom.remote.textReceived', to: 'broadcast' } });
     this.send({ method: 'ms.remote.control', params: { Cmd: base64Encode(utf8Encode(after)), DataOfCmd: 'base64', TypeOfRemote: 'SendInputString' } });
@@ -117,12 +128,24 @@ class SamsungSession implements TvSession {
     switch (message.event) {
       case 'ms.remote.imeStart':
         this.imeOpen = true;
+        this.imeKind = typeof message.data === 'string' ? message.data : '';
+        this.firstUpdate = true;
+        this.awaitingStart = true;
+        this.written = [];
         this.events.onKeyboard?.({ visible: true });
         break;
       case 'ms.remote.imeUpdate': {
-        // data is base64 of the field's current text.
-        const text = typeof message.data === 'string' ? safeB64Text(message.data) : undefined;
-        this.events.onKeyboard?.({ visible: true, text });
+        // data is base64 of the field's text. Real TVs send it right after imeStart (the starting text,
+        // "" when empty) and again after every change, ours included (homebridge-samsung-tizen#733,
+        // dobrou's captures). The first one is news only if we haven't written yet; later ones only when
+        // they aren't an echo of ours (an edit made on the TV itself): an echo arriving after the next
+        // keystroke would otherwise undo it. Password fields always send "".
+        const text = this.imeKind !== 'password' && typeof message.data === 'string' && message.data ? safeB64Text(message.data) : undefined;
+        const news = text !== undefined && (this.awaitingStart ? this.firstUpdate : !this.written.includes(text));
+        this.firstUpdate = false;
+        this.awaitingStart = false;
+        if (news) this.written.push(text); // a repeat of it is not news either
+        this.events.onKeyboard?.({ visible: true, text: news ? text : undefined });
         break;
       }
       case 'ms.remote.imeEnd':
