@@ -4,7 +4,7 @@ App para el celular (Android y iPhone): escribís en una caja de texto y aparece
 
 Habla directo con la tele por la Wi-Fi, usando el protocolo de cada marca. Funciona con varias marcas:
 
-- **Android TV / Google TV** (TCL, Sony, Philips, Xiaomi, Sharp, Hisense, Chromecast con Google TV, Nvidia Shield…): escribe en vivo y además puede abrir la búsqueda de YouTube, Netflix, Prime Video, Disney+, HBO Max o Stremio. Probada con una TCL Android TV 11.
+- **Android TV / Google TV** (TCL, Sony, Philips, Xiaomi, Sharp, Hisense, Chromecast con Google TV, Nvidia Shield…): escribe en vivo y además puede abrir la búsqueda de YouTube, Netflix, Prime Video, Disney+, HBO Max o Stremio. Probada con una TCL Android TV 11, desde la Mac y desde la app de iPhone (vinculación con código, YouTube detectado y búsqueda).
 - **Samsung** (Tizen, 2016 en adelante): escribe cuando la tele tiene abierto su teclado.
 - **LG** (webOS, 2014 en adelante): escribe en el campo de texto abierto.
 - **Roku** (incluye teles Roku de TCL, Hisense, Sharp…): escribe letra por letra en el campo abierto.
