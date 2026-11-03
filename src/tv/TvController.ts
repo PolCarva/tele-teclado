@@ -152,6 +152,8 @@ export class TvController {
   private afterOpenTimers: ReturnType<typeof setTimeout>[] = [];
   /** Set while an app we opened is coming to the front, so the text box isn't cleared. */
   private keepTextFor: SearchApp | null = null;
+  /** What the field of the app we're opening will hold once it's on screen (the search we sent). */
+  private keptTvText = '';
   private scanning: Promise<TvInfo[]> | null = null;
   /** Bumps on every connect attempt, so late answers from an older attempt are ignored. */
   private attempt = 0;
@@ -237,13 +239,22 @@ export class TvController {
       this.sync();
       return;
     }
+    // The box keeps the text: the TV field holds it too, so editing it keeps both in step. It's
+    // cleared when the TV moves to another app (a different field).
     this.pending.push({ kind: 'submit', text: this.phoneText, target });
-    // Apps that only open keep the text, to type it once their search is on screen.
-    if (!appById(target)?.opensOnly) {
-      this.phoneText = '';
-      this.update({ clearToken: this.state.clearToken + 1 });
-    }
     this.sync();
+  }
+
+  /**
+   * Backspace with the phone box empty: the TV field may still hold text (typed before, or on the TV
+   * itself), so delete there anyway. Replace-mode TVs empty the field; the rest delete one character.
+   */
+  deleteOnTv() {
+    const session = this.session;
+    if (this.phoneText || this.state.compose || !session?.ready || !this.canSend) return;
+    session.updateText(' ', '');
+    this.tvText = '';
+    this.touchIdle();
   }
 
   /** Just the Enter key (for TVs where text is sent as a draft). */
@@ -567,8 +578,9 @@ export class TvController {
     const opening = this.keepTextFor;
     this.keepTextFor = null;
     if (opening?.packages.includes(app)) {
-      // We opened this app on purpose: keep the text for its search field, which starts empty.
-      this.tvText = '';
+      // We opened this app on purpose: keep the text. Its field holds the search we sent (or starts
+      // empty, for apps we only open).
+      this.tvText = this.keptTvText;
     } else if (this.lastApp && app !== this.lastApp) {
       // A different app means a different text field: what we typed before doesn't apply.
       this.clearText();
@@ -638,12 +650,22 @@ export class TvController {
         // Open the app if needed. Once it's open, the live typing in sync() puts the text in its field.
         if (!app.packages.includes(this.state.tvApp)) {
           this.keepTextFor = app;
+          this.keptTvText = '';
           session.openLink(app.searchLink(text));
         }
         return;
       }
-      // Opening the link brings the app to the front (switching apps if needed).
+      // Opening the link brings the app to the front (switching apps if needed). Its search field then
+      // holds the text (apps that type after opening start empty and get it typed below).
+      // Recorded the way live typing writes it (plain letters for apps that drop accents), so the
+      // next sync doesn't retype it.
+      const fieldText = app.typeAfterOpen ? '' : textForTv(text, asciiOnly || !!app.asciiOnly);
+      if (!app.packages.includes(this.state.tvApp)) {
+        this.keepTextFor = app;
+        this.keptTvText = fieldText;
+      }
       session.openLink(app.searchLink(text));
+      this.tvText = fieldText;
       if (app.typeAfterOpen && text) {
         this.cancelAfterOpen();
         this.afterOpen = { app, text };
@@ -652,11 +674,10 @@ export class TvController {
       }
     } else {
       // Any other app or TV: finish typing in its field and confirm.
+      // The field keeps the text after Enter in most apps: tvText stays in step with it.
       this.typeDiff(session, textForTv(action.text, asciiOnly));
       if (this.state.canSubmit) session.submit();
     }
-    // The field on the TV now holds a submitted search, not what we're typing next.
-    this.tvText = '';
   }
 
   /** Types the search at each delay, deleting what the previous try left (if it landed). */
@@ -668,7 +689,10 @@ export class TvController {
     const text = textForTv(pending.text, !!pending.app.asciiOnly);
     const gapMs = this.timing.searchScreen.retypeGapMs;
     const typeText = (last: boolean) => {
-      if (this.session?.ready) this.session.updateText('', text);
+      if (this.session?.ready) {
+        this.session.updateText('', text);
+        this.tvText = text;
+      }
       if (last) this.cancelAfterOpen();
     };
     delaysMs.forEach((delayMs, i) => {
@@ -677,7 +701,10 @@ export class TvController {
         setTimeout(() => {
           if (i === 0) return typeText(last);
           // Clear what an earlier try left, give the app time to process it, then type again.
-          if (this.session?.ready) this.session.updateText(text, '');
+          if (this.session?.ready) {
+            this.session.updateText(text, '');
+            this.tvText = '';
+          }
           this.afterOpenTimers.push(setTimeout(() => typeText(last), gapMs));
         }, delayMs),
       );

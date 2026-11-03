@@ -62,6 +62,8 @@ export function TypingView({ state }: { state: TvState }) {
           style={styles.input}
           value={text}
           onChangeText={change}
+          // Backspace in an empty box still deletes on the TV, whose field may hold text.
+          onKeyPress={(e) => e.nativeEvent.key === 'Backspace' && !text && tv.deleteOnTv()}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder="¿Qué querés buscar?"

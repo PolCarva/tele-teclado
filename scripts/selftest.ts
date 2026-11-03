@@ -245,6 +245,53 @@ async function testController() {
   tv.setActive(false);
 }
 
+// The reported case: after "Buscar", the TV field still holds the search. The box keeps it too, so
+// what's typed next edits it instead of piling up ("Holaprueba"), and deleting reaches the TV.
+async function testKeepTextAfterSearch() {
+  let conn!: FakeTvConnection;
+  const transport: Transport = {
+    getClientKey: async () => ({ modulus: new Uint8Array([1]), exponent: new Uint8Array([1]) }),
+    connect: async () => (conn = new FakeTvConnection()),
+  };
+  const store = new Map<string, string | null>([['tv', JSON.stringify({ brand: 'androidtv', host: '10.0.0.5', name: 'tele' })]]);
+  const tv = new TvController(transport, { get: (k) => store.get(k) ?? null, set: (k, v) => store.set(k, v) }, { warmUpMs: 5 });
+  tv.setActive(true);
+  await sleep(10);
+  conn.tvSends(new PbWriter().message(1, new PbWriter().uint(1, 639)).finish());
+  conn.tvSends(new PbWriter().message(2, new PbWriter()).finish());
+  conn.tvSends(new PbWriter().message(40, new PbWriter().uint(1, 1)).finish());
+  conn.tvSends(tvApp('com.google.android.youtube.tv'));
+  await sleep(15);
+  let seen = 0;
+  const newSends = () => {
+    const all = conn.sent().filter((x) => !x.startsWith('key:0'));
+    const fresh = all.slice(seen);
+    seen = all.length;
+    return fresh;
+  };
+  newSends();
+  tv.setText('hola');
+  newSends();
+  const clears = tv.getState().clearToken;
+  tv.submit();
+  assert.deepEqual(newSends(), ['link:https://www.youtube.com/results?search_query=hola']);
+  assert.equal(tv.getState().clearToken, clears, 'the box keeps the search');
+  // Typing on: only the new part goes to the field that already says "hola".
+  tv.setText('hola prueba');
+  assert.deepEqual(newSends(), ['text: prueba']);
+  // Emptying the box empties the TV field too.
+  tv.setText('');
+  assert.deepEqual(newSends(), Array(11).fill('key:67'));
+  // Backspace with the box empty still deletes on the TV.
+  tv.deleteOnTv();
+  assert.deepEqual(newSends(), ['key:67']);
+  // Another app on the TV is another field: the box is cleared.
+  tv.setText('x');
+  conn.tvSends(tvApp('com.netflix.ninja'));
+  assert.equal(tv.getState().clearToken, clears + 1);
+  tv.setActive(false);
+}
+
 async function asyncTest(name: string, fn: () => void | Promise<void>) {
   await fn();
   passed++;
@@ -253,6 +300,7 @@ async function asyncTest(name: string, fn: () => void | Promise<void>) {
 
 async function main() {
   await asyncTest('controller: search target, live typing, search in another app', testController);
+  await asyncTest('controller: after Buscar the box keeps the search, and deletes reach the TV', testKeepTextAfterSearch);
   await netTests(asyncTest);
   await brandTests(asyncTest);
   await brandTests2(asyncTest);
