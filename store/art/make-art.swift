@@ -2,7 +2,8 @@
 //   shots   → 5 screenshots that join into one panorama (App Store 1320x2868 and Google Play 1440x2560)
 //   header  → App Store product page header video, 21:9 3840x1646, 10 s loop (+ a still frame)
 //   feature → Google Play feature graphic 1024x500 (same scene as the header)
-// Run from the repo root: swift store/art/make-art.swift shots|header|feature|all [previewDir]
+//   search  → App Store search results video, 3:2 3600x2400, 15.5 s: typing with the remote, then with the phone
+// Run from the repo root: swift store/art/make-art.swift shots|header|search|feature|all [previewDir]
 // The video needs ffmpeg (brew install ffmpeg).
 import AppKit
 
@@ -301,6 +302,7 @@ func remote(_ r: NSRect, lit: Int) {
     if d == lit { glow(c, 50 * u, orange.withAlphaComponent(0.6)) }
     triangle(c, 11 * u, dir: d, d == lit ? orange : color(0xC9D3E3))
   }
+  if lit == 4 { glow(dc, 80 * u, orange.withAlphaComponent(0.6)); circle(dc, 40 * u, orange) }
   for row in 0..<2 { for col in 0..<2 { circle(NSPoint(x: r.midX + (col == 0 ? -46 : 46) * u, y: r.minY + (370 + CGFloat(row) * 76) * u), 24 * u, color(0x343C4F)) } }
   fill(NSRect(x: r.midX - 27 * u, y: r.minY + 540 * u, width: 54 * u, height: 150 * u), 27 * u, color(0x343C4F))
 }
@@ -614,36 +616,180 @@ func headerScene(_ t: Double) {
   }
 }
 
-func renderHeader(previewDir: String?) {
-  let W = 3840, H = 1646, fps = 30
+// MARK: - Search results video: typing with the remote, then with the phone
+
+// 3:2 (Apple takes 1920x1280 to 3840x2560); 3600x2400 keeps H.264 at level 5.1. Shown small and muted
+// in search results, so labels are big.
+let cmpW = 3600, cmpH = 2400, cmpLength = 15.5
+let cmpTV = NSRect(x: 280, y: 240, width: 2300, height: 2300 * 0.585)
+
+// The TV's on-screen keyboard (7 columns, like many TV apps) and the remote's walk to type "receta".
+let tvRows = ["abcdefg", "hijklmn", "ñopqrst", "uvwxyz⌫"].map { Array($0) }
+func tvKeyPos(_ ch: Character) -> CGPoint {
+  for (r, row) in tvRows.enumerated() { if let c = row.firstIndex(of: ch) { return CGPoint(x: c, y: r) } }
+  return .zero
+}
+struct RemoteStep { let dir: Int; let from: CGPoint; let to: CGPoint; let letter: Character? }  // dir: 0 up, 1 right, 2 down, 3 left, 4 OK
+let remoteSteps: [RemoteStep] = {
+  var steps: [RemoteStep] = [], cur = CGPoint.zero
+  for ch in "receta" {
+    let target = tvKeyPos(ch)
+    while cur.x != target.x { let n = CGPoint(x: cur.x + (target.x > cur.x ? 1 : -1), y: cur.y); steps.append(RemoteStep(dir: target.x > cur.x ? 1 : 3, from: cur, to: n, letter: nil)); cur = n }
+    while cur.y != target.y { let n = CGPoint(x: cur.x, y: cur.y + (target.y > cur.y ? 1 : -1)); steps.append(RemoteStep(dir: target.y > cur.y ? 2 : 0, from: cur, to: n, letter: nil)); cur = n }
+    steps.append(RemoteStep(dir: 4, from: cur, to: cur, letter: ch))
+  }
+  return steps
+}()
+let rStart = 0.6, rStep = 0.2
+let swapAt = rStart + Double(remoteSteps.count) * rStep + 0.6, swapLength = 0.8
+let pPhrase = Array("receta de empanadas"), pStart = swapAt + swapLength + 0.3, pStep = 0.12, pFlight = 0.45
+func pTime(_ i: Int) -> Double { pStart + Double(i) * pStep }
+let pEnter = pTime(pPhrase.count - 1) + pFlight + 0.25
+
+func layer(_ a: CGFloat, _ f: () -> Void) {
+  saved { cg.setAlpha(a); cg.beginTransparencyLayer(auxiliaryInfo: nil); f(); cg.endTransparencyLayer() }
+}
+
+func tvKeyboard(_ s: NSRect, typed: String, path: [CGPoint], press: CGFloat) {
+  let u = s.width / 1000
+  let L = searchLayout(s)
+  fill(L.field, 48 * u, color(0xFFFFFF, 0.07))
+  ring(L.field, 48 * u, accent.withAlphaComponent(0.9), 3 * u)
+  var caretX = L.textX - 60 * u
+  if typed.isEmpty { text("Buscar", L.font, color(0x6B7588), x: caretX, baseline: L.baseline) }
+  else { caretX += text(typed, L.font, .white, x: caretX, baseline: L.baseline) }
+  fill(NSRect(x: caretX + 4 * u, y: L.field.midY - 27 * u, width: 4 * u, height: 54 * u), 2 * u, accent)
+  let key = 78 * u, gap = 12 * u
+  let x0 = s.midX - (7 * key + 6 * gap) / 2, y0 = s.minY + 196 * u
+  func center(_ p: CGPoint) -> NSPoint { NSPoint(x: x0 + p.x * (key + gap) + key / 2, y: y0 + p.y * (key + gap) + key / 2) }
+  for (r, row) in tvRows.enumerated() { for c in row.indices { let k = center(CGPoint(x: c, y: r)); fill(NSRect(x: k.x - key / 2, y: k.y - key / 2, width: key, height: key), 12 * u, color(0x222937)) } }
+  if path.count > 1 {
+    let p = NSBezierPath(); p.move(to: center(path[0])); for q in path.dropFirst() { p.line(to: center(q)) }
+    saved { orange.withAlphaComponent(0.18).setStroke(); p.lineWidth = 22 * u; p.lineJoinStyle = .round; p.lineCapStyle = .round; p.stroke() }
+    p.lineWidth = 5 * u; p.lineJoinStyle = .round; p.lineCapStyle = .round; p.setLineDash([12 * u, 10 * u], count: 2, phase: 0)
+    orange.setStroke(); p.stroke()
+  }
+  let cur = center(path.last ?? .zero)
+  let cr = NSRect(x: cur.x - key / 2, y: cur.y - key / 2, width: key, height: key).insetBy(dx: -5 * u - 6 * u * press, dy: -5 * u - 6 * u * press)
+  glow(cur, key * 1.1, (press > 0 ? orange : accent).withAlphaComponent(0.45))
+  fill(cr, 14 * u, press > 0 ? orange : ink)
+  let f = font(36 * u, .medium)
+  for (r, row) in tvRows.enumerated() {
+    for (c, ch) in row.enumerated() {
+      let k = center(CGPoint(x: c, y: r))
+      let under = hypot(k.x - cur.x, k.y - cur.y) < key * 0.5
+      centered(String(ch), f, under ? color(0x0A0C10) : color(0xC9D3E3), cx: k.x, baseline: k.y + (ch == "⌫" ? f.capHeight : f.xHeight) / 2)
+    }
+  }
+}
+
+func compareScene(_ t: Double) {
+  let W = CGFloat(cmpW), H = CGFloat(cmpH)
+  vgrad(NSRect(x: 0, y: 0, width: W, height: H), color(0x16264A), color(0x0A0C10))
+  glow(NSPoint(x: 1430, y: 930), 1900, blue.withAlphaComponent(0.22))
+  glow(NSPoint(x: 3000, y: 1400), 1000, blue.withAlphaComponent(0.12))
+
+  // The remote's walk.
+  let rEnd = rStart + Double(remoteSteps.count) * rStep
+  let k = t < rStart ? -1 : min(remoteSteps.count - 1, Int((t - rStart) / rStep))
+  let q = k < 0 ? 0 : clamp(CGFloat((t - rStart - Double(k) * rStep) / 0.12))
+  var path = [CGPoint.zero], typed = ""
+  if k >= 0 {
+    for i in 0...k {
+      let st = remoteSteps[i]
+      if st.dir == 4 { if i < k || q >= 1 { typed.append(st.letter!) } }
+      else { let e = i < k ? 1 : ease(q); path.append(CGPoint(x: lerp(st.from.x, st.to.x, e), y: lerp(st.from.y, st.to.y, e))) }
+    }
+  }
+  let clicks = k + 1
+  let litNow = k >= 0 && t < rEnd && t - rStart - Double(k) * rStep < 0.14
+  let lit = litNow ? remoteSteps[k].dir : -1
+  let press: CGFloat = lit == 4 ? 1 - q * 0.5 : 0
+
+  // The phone.
+  // The remote's world fades out first, then the phone's fades in (no double exposure).
+  let m = clamp(CGFloat((t - swapAt) / swapLength))
+  let mOut = ease(clamp(m * 2)), mIn = ease(clamp(m * 2 - 1))
+  let phoneText = String(pPhrase[..<pPhrase.indices.filter { pTime($0) <= t }.count])
+  let tvText = String(pPhrase[..<pPhrase.indices.filter { pTime($0) + pFlight <= t }.count])
+  let busy = (t >= rStart && t < rEnd) || (t >= pStart && t < pEnter)
+  let caretOn = busy || t.truncatingRemainder(dividingBy: 1.0) < 0.55
+  let results = clamp(CGFloat((t - pEnter - 0.3) / 1.0))
+  let flash = CGFloat(max(0, 1 - abs(t - (pEnter + 0.2)) / 0.35))
+
+  tv(cmpTV) { s in
+    if mOut < 1 { layer(1 - mOut) { tvKeyboard(s, typed: typed, path: path, press: press) } }
+    if mIn > 0 { layer(mIn) { tvSearch(s, TVSearch(typed: tvText, caret: caretOn, results: results, flash: flash)) } }
+  }
+  if mOut < 1 { layer(1 - mOut) { remote(NSRect(x: 2830, y: 640 + mOut * 600, width: 300, height: 1173), lit: lit) } }
+  let ps = phoneScreen(x: 2700, y: 560 + (1 - mIn) * 600, width: 700)
+  if mIn > 0 {
+    var key: (NSRect, CGFloat)? = nil
+    for i in pPhrase.indices where t >= pTime(i) && t < pTime(i) + 0.11 { key = keyRect(pPhrase[i]).map { ($0, CGFloat(1 - (t - pTime(i)) / 0.11)) } }
+    let enter = t >= pEnter && t < pEnter + 0.3 ? CGFloat(1 - (t - pEnter) / 0.3) : 0
+    layer(mIn) { phone(ps, "escribir") { typingOverlay(Typing(text: phoneText, caret: caretOn, key: key, enter: enter)) } }
+  }
+  let kk = ps.width / capW, z: CGFloat = 1.45
+  let s = tvScreen(cmpTV)
+  let guide = CGFloat(clamp(CGFloat((t - pStart + 0.3) / 0.3)) * (1 - clamp(CGFloat((t - pEnter) / 0.4))))
+  if guide > 0 {
+    let a = capCaret(phoneText)
+    arcGuide(NSPoint(x: ps.minX + a.x * kk, y: ps.minY + a.y * kk), tvLanding(s, tvText, "a"), lift: 190 * z, width: 7 * z, alpha: guide)
+  }
+  for i in pPhrase.indices where t > pTime(i) && t < pTime(i) + pFlight && pPhrase[i] != " " {
+    let prefix = String(pPhrase[..<i])
+    let a = capCaret(prefix + String(pPhrase[i]))
+    let from = NSPoint(x: ps.minX + (a.x + 64) * kk, y: ps.minY + (a.y - 8) * kk)
+    flight(from, tvLanding(s, prefix, String(pPhrase[i])), String(pPhrase[i]), CGFloat((t - pTime(i)) / pFlight), size0: 56 * z, size1: 96 * z, lift: 190 * z)
+  }
+
+  let pf = font(118, .semibold), pillY: CGFloat = 1985
+  if mOut < 1 { layer(1 - mOut) { pill("Con el control: \(max(0, clicks)) \(clicks == 1 ? "clic" : "clics")", pf, cx: cmpTV.midX, cy: pillY, dot: orange) } }
+  if mIn > 0 { layer(mIn) { pill("Con el celular: escribís y listo", pf, cx: cmpTV.midX, cy: pillY, dot: accent) } }
+}
+// The last 0.8 s go back to the first frame through an empty TV, so the loop is seamless.
+func compareBase() {
+  vgrad(NSRect(x: 0, y: 0, width: CGFloat(cmpW), height: CGFloat(cmpH)), color(0x16264A), color(0x0A0C10))
+  glow(NSPoint(x: 1430, y: 930), 1900, blue.withAlphaComponent(0.22))
+  glow(NSPoint(x: 3000, y: 1400), 1000, blue.withAlphaComponent(0.12))
+  tv(cmpTV) { _ in }
+}
+func compareFrame(_ t: Double) {
+  let f = clamp(CGFloat((t - (cmpLength - 0.8)) / 0.8))
+  if f <= 0 { compareScene(t) }
+  else if f < 0.5 { compareScene(t); layer(ease(f * 2)) { compareBase() } }
+  else { compareBase(); layer(ease(f * 2 - 1)) { compareScene(0) } }
+}
+
+func renderVideo(_ name: String, w: Int, h: Int, length: Double, still: Double, audio: Bool, previewDir: String?, scene: (Double) -> Void) {
+  let fps = 30, out = "store/header/\(name)"
   try? FileManager.default.createDirectory(atPath: "store/header", withIntermediateDirectories: true)
-  let still = makeContext(W, H)
-  drawInto(still, height: H, scale: 1) { headerScene(6.5) }
-  savePNG(still.makeImage()!, "store/header/header.png")
+  let stillCtx = makeContext(w, h)
+  drawInto(stillCtx, height: h, scale: 1) { scene(still) }
+  savePNG(stillCtx.makeImage()!, "\(out).png")
 
   let ffmpeg = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"].first { FileManager.default.fileExists(atPath: $0) }!
   let p = Process()
   p.executableURL = URL(fileURLWithPath: ffmpeg)
-  p.arguments = ["-y", "-loglevel", "error",
-                 "-f", "rawvideo", "-pix_fmt", "rgba", "-s", "\(W)x\(H)", "-r", "\(fps)", "-i", "-",
-                 "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
-                 "-map", "0:v", "-map", "1:a", "-shortest",
-                 "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "5.1",
-                 "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
-                 "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "store/header/header.mp4"]
+  var a = ["-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", "\(w)x\(h)", "-r", "\(fps)", "-i", "-"]
+  // The header keeps a silent stereo track; Apple does not require audio.
+  if audio { a += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000", "-map", "0:v", "-map", "1:a", "-shortest", "-c:a", "aac", "-b:a", "128k"] }
+  a += ["-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "5.1",
+        "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart", "\(out).mp4"]
+  p.arguments = a
   let pipe = Pipe()
   p.standardInput = pipe
   try! p.run()
-  let ctx = makeContext(W, H)
-  let frames = Int(loopLength * Double(fps))
+  let ctx = makeContext(w, h)
+  let frames = Int((length * Double(fps)).rounded())
   for f in 0..<frames {
-    drawInto(ctx, height: H, scale: 1) { headerScene(Double(f) / Double(fps)) }
-    pipe.fileHandleForWriting.write(Data(bytes: ctx.data!, count: W * H * 4))
-    if let previewDir, f % 15 == 0 { savePNG(ctx.makeImage()!, "\(previewDir)/frame-\(f).png") }
+    drawInto(ctx, height: h, scale: 1) { scene(Double(f) / Double(fps)) }
+    pipe.fileHandleForWriting.write(Data(bytes: ctx.data!, count: w * h * 4))
+    if let previewDir, f % 15 == 0 { savePNG(ctx.makeImage()!, "\(previewDir)/\(name)-\(f).png") }
   }
   try! pipe.fileHandleForWriting.close()
   p.waitUntilExit()
-  print("wrote store/header/header.mp4 (\(frames) frames)")
+  print("wrote \(out).mp4 (\(frames) frames)")
 }
 
 // Play feature graphic: the header's finished scene, cropped to 1024x500.
@@ -659,4 +805,5 @@ let what = args.first ?? "all"
 let previewDir = args.count > 1 ? args[args.startIndex + 1] : nil
 if what == "shots" || what == "all" { renderShots(previewDir: previewDir) }
 if what == "feature" || what == "all" { renderFeature() }
-if what == "header" || what == "all" { renderHeader(previewDir: previewDir) }
+if what == "header" || what == "all" { renderVideo("header", w: 3840, h: 1646, length: loopLength, still: 6.5, audio: true, previewDir: previewDir, scene: headerScene) }
+if what == "search" || what == "all" { renderVideo("search-results", w: cmpW, h: cmpH, length: cmpLength, still: 13, audio: false, previewDir: previewDir, scene: compareFrame) }

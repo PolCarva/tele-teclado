@@ -1,7 +1,7 @@
 // Pushes the App Store listing in store/app-store.json through the App Store Connect API.
 //   node scripts/app-store.mjs listing       text, URLs, categories, age rating, review notes, price, availability
 //   node scripts/app-store.mjs screenshots   replaces the screenshots with the ones in store/screenshots
-//   node scripts/app-store.mjs header        uploads the product page header video (store/header) and places it
+//   node scripts/app-store.mjs videos        uploads the header and search results videos (store/header) and places them
 //   node scripts/app-store.mjs build [n]     attaches build n (default: newest valid) to the version
 //   node scripts/app-store.mjs status        what is still missing
 //   node scripts/app-store.mjs cancel        takes the version out of App Review so it can be edited
@@ -194,51 +194,54 @@ async function screenshots() {
   }
 }
 
-// Product page header (iOS 27+): a creative asset in the app's Asset Library, placed on the version.
-// The upload works any time; placing it needs a version that can be edited (never creates one).
-async function header() {
+// Creative assets (iOS 27+): videos in the app's Asset Library, placed on the version. The upload
+// works any time; placing them needs a version that can be edited (this never creates one).
+const creatives = [['header', 'PRODUCT_PAGE_HEADER_ASSET'], ['searchResults', 'APP_STORE_SEARCH_RESULTS_ASSET']];
+async function videos() {
   const library = (await api('GET', `/v1/apps/${app}/assetLibrary`)).data;
   const { data: versions } = await api('GET', `/v1/apps/${app}/appStoreVersions?filter[platform]=IOS&limit=1`);
   const version = ['PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED', 'METADATA_REJECTED'].includes(versions[0].attributes.appStoreState) ? versions[0] : null;
   const verLocs = version ? (await api('GET', `/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations`)).data : [];
+  const existing = (await api('GET', `/v1/appAssetLibraries/${library.id}/videos?limit=200`)).data;
   for (const [locale, l] of Object.entries(store.locales)) {
-    if (!l.header) continue;
-    const path = join(ROOT, l.header.file);
-    const bytes = readFileSync(path);
-    // Reuse the same file if it is already in the library (a re-run must not pile up copies).
-    const existing = (await api('GET', `/v1/appAssetLibraries/${library.id}/videos?limit=200`)).data;
-    let video = existing.find((v) => v.attributes.fileName === basename(path) && v.attributes.fileSize === bytes.length && !['FAILED', 'ARCHIVED'].includes(v.attributes.state));
-    if (!video) {
-      video = (await api('POST', '/v1/appAssetLibraryVideos', { data: { type: 'appAssetLibraryVideos', attributes: { category: 'CREATIVE_ASSETS', fileName: basename(path), fileSize: bytes.length, referenceName: l.header.name, previewFrameTimeCode: l.header.posterTimeCode }, relationships: { assetLibrary: ref('appAssetLibraries', library.id) } } })).data;
-      for (const op of video.attributes.uploadOperations) {
-        const headers = Object.fromEntries(op.requestHeaders.map((h) => [h.name, h.value]));
-        const res = await fetch(op.url, { method: op.method, headers, body: bytes.subarray(op.offset, op.offset + op.length) });
-        if (!res.ok) throw new Error(`upload ${basename(path)}: ${res.status}`);
+    for (const [field, placementType] of creatives) {
+      const asset = l[field];
+      if (!asset) continue;
+      const path = join(ROOT, asset.file);
+      const bytes = readFileSync(path);
+      // Reuse the same file if it is already in the library (a re-run must not pile up copies).
+      let video = existing.find((v) => v.attributes.fileName === basename(path) && v.attributes.fileSize === bytes.length && !['FAILED', 'ARCHIVED'].includes(v.attributes.state));
+      if (!video) {
+        video = (await api('POST', '/v1/appAssetLibraryVideos', { data: { type: 'appAssetLibraryVideos', attributes: { category: 'CREATIVE_ASSETS', fileName: basename(path), fileSize: bytes.length, referenceName: asset.name, previewFrameTimeCode: asset.posterTimeCode }, relationships: { assetLibrary: ref('appAssetLibraries', library.id) } } })).data;
+        for (const op of video.attributes.uploadOperations) {
+          const headers = Object.fromEntries(op.requestHeaders.map((h) => [h.name, h.value]));
+          const res = await fetch(op.url, { method: op.method, headers, body: bytes.subarray(op.offset, op.offset + op.length) });
+          if (!res.ok) throw new Error(`upload ${basename(path)}: ${res.status}`);
+        }
+        await api('PATCH', `/v1/appAssetLibraryVideos/${video.id}`, { data: { type: 'appAssetLibraryVideos', id: video.id, attributes: { uploaded: true } } });
+        console.log(`${locale} ${field}: ${basename(path)} uploaded`);
       }
-      await api('PATCH', `/v1/appAssetLibraryVideos/${video.id}`, { data: { type: 'appAssetLibraryVideos', id: video.id, attributes: { uploaded: true } } });
-      console.log(`${locale} header: ${basename(path)} uploaded`);
+      // Apple checks it against the spec in the background (minutes).
+      for (let i = 0; i < 200 && ['AWAITING_UPLOAD', 'UPLOAD_COMPLETE'].includes(video.attributes.state); i++) {
+        await new Promise((r) => setTimeout(r, 6000));
+        video = (await api('GET', `/v1/appAssetLibraryVideos/${video.id}`)).data;
+      }
+      console.log(`  ${field} processed: ${video.attributes.state}${video.attributes.stateDetails?.length ? ` ${JSON.stringify(video.attributes.stateDetails)}` : ''}`);
+      if (['AWAITING_UPLOAD', 'UPLOAD_COMPLETE', 'FAILED'].includes(video.attributes.state)) throw new Error(`${basename(path)} is not ready (${video.attributes.state})`);
+      const loc = verLocs.find((x) => x.attributes.locale === locale);
+      if (!loc) {
+        console.log(`  not placed: version ${versions[0].attributes.versionString} is ${versions[0].attributes.appStoreState} (run cancel, or wait for the next version)`);
+        continue;
+      }
+      const placements = (await api('GET', `/v1/appStoreVersionLocalizations/${loc.id}/placements?limit=50`)).data.filter((p) => p.attributes.placementType === placementType);
+      if (placements.some((p) => p.relationships?.video?.data?.id === video.id)) {
+        console.log(`  already placed as ${placementType}`);
+        continue;
+      }
+      for (const p of placements) await api('DELETE', `/v1/appAssetLibraryPlacements/${p.id}`);
+      await api('POST', '/v1/appAssetLibraryPlacements', { data: { type: 'appAssetLibraryPlacements', attributes: { placementType }, relationships: { video: ref('appAssetLibraryVideos', video.id), appStoreVersionLocalization: ref('appStoreVersionLocalizations', loc.id) } } });
+      console.log(`  placed as ${locale} ${placementType}`);
     }
-    for (let i = 0; i < 100; i++) {
-      video = (await api('GET', `/v1/appAssetLibraryVideos/${video.id}`)).data;
-      if (!['AWAITING_UPLOAD', 'UPLOAD_COMPLETE'].includes(video.attributes.state)) break;
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-    console.log(`  processed: ${video.attributes.state}${video.attributes.stateDetails?.length ? ` ${JSON.stringify(video.attributes.stateDetails)}` : ''}`);
-    if (video.attributes.state === 'FAILED') throw new Error('Apple rejected the header video');
-    const loc = verLocs.find((x) => x.attributes.locale === locale);
-    if (!loc) {
-      console.log(`  not placed: version ${versions[0].attributes.versionString} is ${versions[0].attributes.appStoreState} (run cancel, or wait for the next version)`);
-      continue;
-    }
-    const placements = (await api('GET', `/v1/appStoreVersionLocalizations/${loc.id}/placements`)).data;
-    const headers = placements.filter((p) => p.attributes.placementType === 'PRODUCT_PAGE_HEADER_ASSET');
-    if (headers.some((p) => p.relationships?.video?.data?.id === video.id)) {
-      console.log('  already the header');
-      continue;
-    }
-    for (const p of headers) await api('DELETE', `/v1/appAssetLibraryPlacements/${p.id}`);
-    await api('POST', '/v1/appAssetLibraryPlacements', { data: { type: 'appAssetLibraryPlacements', attributes: { placementType: 'PRODUCT_PAGE_HEADER_ASSET' }, relationships: { video: ref('appAssetLibraryVideos', video.id), appStoreVersionLocalization: ref('appStoreVersionLocalizations', loc.id) } } });
-    console.log(`  placed as the ${locale} product page header`);
   }
 }
 
@@ -310,9 +313,9 @@ async function submit() {
 }
 
 const [command, arg] = process.argv.slice(2);
-const commands = { listing, screenshots, header, build: () => build(arg), builds, status, cancel, submit };
+const commands = { listing, screenshots, videos, header: videos, build: () => build(arg), builds, status, cancel, submit };
 if (!commands[command]) {
-  console.log('usage: node scripts/app-store.mjs listing|screenshots|header|build [n]|builds|status|cancel|submit');
+  console.log('usage: node scripts/app-store.mjs listing|screenshots|videos|build [n]|builds|status|cancel|submit');
   process.exit(1);
 }
 commands[command]().catch((e) => {
