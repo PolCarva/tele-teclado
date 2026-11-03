@@ -1,0 +1,16 @@
+{
+  "language": "es-419",
+  "title": "Teclado TV",
+  "shortDescription": "Escribí en la tele con el teclado del celular: búsquedas, usuarios y claves.",
+  "fullDescription": "Escribir con el control remoto, letra por letra, es lento. Con Teclado TV escribís en el celular y el texto aparece en la tele.\n\nSirve para los campos de texto de la tele: la búsqueda de una app de videos, un usuario, una contraseña o la clave del Wi-Fi.\n\nCÓMO FUNCIONA\n• Conectá el celular a la misma Wi-Fi que la tele y abrí la app.\n• La app encuentra sola las teles de tu red y te las muestra por nombre.\n• Vinculá una sola vez: según la marca, la tele muestra un código o te pregunta si permitís el celular.\n• Abrí un buscador en la tele y escribí en el celular.\n\nTELES COMPATIBLES\n• Android TV y Google TV (TCL, Sony, Philips, Xiaomi, Hisense, Chromecast con Google TV y más): el texto aparece en vivo mientras escribís, y podés abrir la búsqueda directo en varias apps de video.\n• Samsung con Tizen (2016 en adelante).\n• LG con webOS (2014 en adelante).\n• Roku y teles con Roku integrado.\n• Sony BRAVIA (2013 en adelante).\n• Panasonic VIERA con el sistema de Panasonic (2011 en adelante; no las que traen Fire TV o TiVo).\n\nSi tu tele no aparece, podés buscarla de nuevo o escribir su dirección IP: la app detecta sola la marca.\n\nPRIVADA\nLa app habla directo con tu tele por tu Wi-Fi. No hay cuentas, ni publicidad, ni servidores intermedios: lo que escribís va solo a la tele y la app no recopila ningún dato.\n\nTeclado TV es una app independiente y no está afiliada ni respaldada por Google, Samsung, LG, Roku, Sony ni Panasonic. Las marcas se mencionan solo para indicar compatibilidad. Algunas funciones dependen del modelo y del software de cada tele.",
+  "category": "Herramientas",
+  "contactWebsite": "https://polcarva.github.io/tele-teclado/",
+  "privacyPolicyUrl": "https://polcarva.github.io/tele-teclado/privacidad.html",
+  "screenshots": [
+    "store/play/1-escribir.png",
+    "store/play/2-conectar.png",
+    "store/play/3-vincular.png"
+  ],
+  "featureGraphic": "store/play/feature-graphic.png",
+  "icon512": "store/play/icon-512.png"
+}
