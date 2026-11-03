@@ -31,7 +31,7 @@ async function api(method, path, body) {
   let res;
   // Apple's API answers the odd 500; retry the requests that are safe to repeat.
   for (let attempt = 1; ; attempt++) {
-    res = await fetch(url, { method, headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    res = await fetch(url, { method, headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30_000) });
     if (res.status < 500 || method === 'POST' || attempt === 5) break;
     await new Promise((r) => setTimeout(r, 1500 * attempt));
   }

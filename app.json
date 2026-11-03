@@ -61,6 +61,9 @@
         "projectId": "800b606c-3db6-4a8b-9d99-235ebb8bbac8"
       }
     },
-    "owner": "pablo-carvalho"
+    "owner": "pablo-carvalho",
+    "plugins": [
+      "./plugins/withPlayUploadKey"
+    ]
   }
 }

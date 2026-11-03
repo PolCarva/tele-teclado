@@ -32,7 +32,8 @@
     "build:android": "scripts/build-android.sh",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "realtv": "tsx scripts/realtv.ts"
+    "realtv": "tsx scripts/realtv.ts",
+    "build:play": "scripts/build-play.sh"
   },
   "private": true
 }

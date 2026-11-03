@@ -51,3 +51,4 @@ modules/**/build/
 .pod-install.log
 .xcodebuild-*.log
 .build-android.log
+.build-play.log
