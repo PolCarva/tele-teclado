@@ -1,4 +1,4 @@
-// Google Play images from the App Store ones: screenshots padded to 2:1 (Play's maximum ratio) and
+// Google Play images from the App Store ones: screenshots in 9:16 (what Play accepts) and
 // the 1024x500 feature graphic. Run: swift store/play/make-assets.swift  (from the repo root)
 import AppKit
 
@@ -23,18 +23,21 @@ func canvas(_ w: Int, _ h: Int, _ draw: () -> Void) -> NSBitmapImageRep {
   return rep
 }
 
-// Screenshots: 1320x2868 -> 1434x2868 (2:1), stretching each edge column sideways (the background is a
-// vertical gradient, so this is seamless).
+// Screenshots: Play wants exactly 9:16. The 1320x2868 App Store image is scaled to 2560 px high and
+// centred on 1440x2560, stretching its edge columns sideways (the background is a vertical gradient,
+// so this is seamless).
 for name in ["1-escribir", "2-conectar", "3-vincular"] {
   let src = load("store/screenshots/iphone-6.9/\(name).png")
-  let w = src.pixelsWide, h = src.pixelsHigh
-  let pad = (h / 2 - w + 1) / 2
-  let img = NSImage(size: NSSize(width: w, height: h))
+  let W = 1440, H = 2560
+  let w = Int((Double(src.pixelsWide) * Double(H) / Double(src.pixelsHigh)).rounded())
+  let pad = (W - w) / 2
+  let img = NSImage(size: NSSize(width: src.pixelsWide, height: src.pixelsHigh))
   img.addRepresentation(src)
-  let out = canvas(w + 2 * pad, h) {
-    img.draw(in: NSRect(x: 0, y: 0, width: pad, height: h), from: NSRect(x: 0, y: 0, width: 1, height: h), operation: .copy, fraction: 1)
-    img.draw(in: NSRect(x: pad + w, y: 0, width: pad, height: h), from: NSRect(x: w - 1, y: 0, width: 1, height: h), operation: .copy, fraction: 1)
-    img.draw(in: NSRect(x: pad, y: 0, width: w, height: h), from: .zero, operation: .copy, fraction: 1)
+  let sh = CGFloat(src.pixelsHigh)
+  let out = canvas(W, H) {
+    img.draw(in: NSRect(x: 0, y: 0, width: pad + 1, height: H), from: NSRect(x: 0, y: 0, width: 1, height: sh), operation: .copy, fraction: 1)
+    img.draw(in: NSRect(x: pad + w - 1, y: 0, width: W - pad - w + 1, height: H), from: NSRect(x: CGFloat(src.pixelsWide - 1), y: 0, width: 1, height: sh), operation: .copy, fraction: 1)
+    img.draw(in: NSRect(x: pad, y: 0, width: w, height: H), from: .zero, operation: .copy, fraction: 1)
   }
   save(out, "store/play/\(name).png")
 }
