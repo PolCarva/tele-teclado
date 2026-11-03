@@ -8,8 +8,10 @@
   "privacyPolicyUrl": "https://polcarva.github.io/tele-teclado/privacidad.html",
   "screenshots": [
     "store/play/1-escribir.png",
-    "store/play/2-conectar.png",
-    "store/play/3-vincular.png"
+    "store/play/2-sin-control.png",
+    "store/play/3-marcas.png",
+    "store/play/4-conectar.png",
+    "store/play/5-vincular.png"
   ],
   "featureGraphic": "store/play/feature-graphic.png",
   "icon512": "store/play/icon-512.png"

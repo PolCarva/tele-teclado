@@ -18,9 +18,16 @@
       "screenshots": {
         "APP_IPHONE_67": [
           "store/screenshots/iphone-6.9/1-escribir.png",
-          "store/screenshots/iphone-6.9/2-conectar.png",
-          "store/screenshots/iphone-6.9/3-vincular.png"
+          "store/screenshots/iphone-6.9/2-sin-control.png",
+          "store/screenshots/iphone-6.9/3-marcas.png",
+          "store/screenshots/iphone-6.9/4-conectar.png",
+          "store/screenshots/iphone-6.9/5-vincular.png"
         ]
+      },
+      "header": {
+        "file": "store/header/header.mp4",
+        "name": "Encabezado: escribir desde el celular",
+        "posterTimeCode": "00:00:06:15"
       },
       "whatsNew": "El texto queda en la caja después de Buscar o Enter, así que podés seguir editando la búsqueda y lo que borrás también se borra en la tele. Y si la caja está vacía, la tecla de borrar igual borra lo que quedó en la tele."
     }

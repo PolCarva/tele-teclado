@@ -1,8 +1,10 @@
 // Pushes the App Store listing in store/app-store.json through the App Store Connect API.
 //   node scripts/app-store.mjs listing       text, URLs, categories, age rating, review notes, price, availability
 //   node scripts/app-store.mjs screenshots   replaces the screenshots with the ones in store/screenshots
+//   node scripts/app-store.mjs header        uploads the product page header video (store/header) and places it
 //   node scripts/app-store.mjs build [n]     attaches build n (default: newest valid) to the version
 //   node scripts/app-store.mjs status        what is still missing
+//   node scripts/app-store.mjs cancel        takes the version out of App Review so it can be edited
 //   node scripts/app-store.mjs submit        sends the version to App Review
 // The API key stays in ~/.appstoreconnect/private_keys (same one eas.json uses); set ASC_PHONE for
 // the review contact phone (Apple requires one; it is not public).
@@ -192,6 +194,72 @@ async function screenshots() {
   }
 }
 
+// Product page header (iOS 27+): a creative asset in the app's Asset Library, placed on the version.
+// The upload works any time; placing it needs a version that can be edited (never creates one).
+async function header() {
+  const library = (await api('GET', `/v1/apps/${app}/assetLibrary`)).data;
+  const { data: versions } = await api('GET', `/v1/apps/${app}/appStoreVersions?filter[platform]=IOS&limit=1`);
+  const version = ['PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED', 'METADATA_REJECTED'].includes(versions[0].attributes.appStoreState) ? versions[0] : null;
+  const verLocs = version ? (await api('GET', `/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations`)).data : [];
+  for (const [locale, l] of Object.entries(store.locales)) {
+    if (!l.header) continue;
+    const path = join(ROOT, l.header.file);
+    const bytes = readFileSync(path);
+    // Reuse the same file if it is already in the library (a re-run must not pile up copies).
+    const existing = (await api('GET', `/v1/appAssetLibraries/${library.id}/videos?limit=200`)).data;
+    let video = existing.find((v) => v.attributes.fileName === basename(path) && v.attributes.fileSize === bytes.length && !['FAILED', 'ARCHIVED'].includes(v.attributes.state));
+    if (!video) {
+      video = (await api('POST', '/v1/appAssetLibraryVideos', { data: { type: 'appAssetLibraryVideos', attributes: { category: 'CREATIVE_ASSETS', fileName: basename(path), fileSize: bytes.length, referenceName: l.header.name, previewFrameTimeCode: l.header.posterTimeCode }, relationships: { assetLibrary: ref('appAssetLibraries', library.id) } } })).data;
+      for (const op of video.attributes.uploadOperations) {
+        const headers = Object.fromEntries(op.requestHeaders.map((h) => [h.name, h.value]));
+        const res = await fetch(op.url, { method: op.method, headers, body: bytes.subarray(op.offset, op.offset + op.length) });
+        if (!res.ok) throw new Error(`upload ${basename(path)}: ${res.status}`);
+      }
+      await api('PATCH', `/v1/appAssetLibraryVideos/${video.id}`, { data: { type: 'appAssetLibraryVideos', id: video.id, attributes: { uploaded: true } } });
+      console.log(`${locale} header: ${basename(path)} uploaded`);
+    }
+    for (let i = 0; i < 100; i++) {
+      video = (await api('GET', `/v1/appAssetLibraryVideos/${video.id}`)).data;
+      if (!['AWAITING_UPLOAD', 'UPLOAD_COMPLETE'].includes(video.attributes.state)) break;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    console.log(`  processed: ${video.attributes.state}${video.attributes.stateDetails?.length ? ` ${JSON.stringify(video.attributes.stateDetails)}` : ''}`);
+    if (video.attributes.state === 'FAILED') throw new Error('Apple rejected the header video');
+    const loc = verLocs.find((x) => x.attributes.locale === locale);
+    if (!loc) {
+      console.log(`  not placed: version ${versions[0].attributes.versionString} is ${versions[0].attributes.appStoreState} (run cancel, or wait for the next version)`);
+      continue;
+    }
+    const placements = (await api('GET', `/v1/appStoreVersionLocalizations/${loc.id}/placements`)).data;
+    const headers = placements.filter((p) => p.attributes.placementType === 'PRODUCT_PAGE_HEADER_ASSET');
+    if (headers.some((p) => p.relationships?.video?.data?.id === video.id)) {
+      console.log('  already the header');
+      continue;
+    }
+    for (const p of headers) await api('DELETE', `/v1/appAssetLibraryPlacements/${p.id}`);
+    await api('POST', '/v1/appAssetLibraryPlacements', { data: { type: 'appAssetLibraryPlacements', attributes: { placementType: 'PRODUCT_PAGE_HEADER_ASSET' }, relationships: { video: ref('appAssetLibraryVideos', video.id), appStoreVersionLocalization: ref('appStoreVersionLocalizations', loc.id) } } });
+    console.log(`  placed as the ${locale} product page header`);
+  }
+}
+
+// Takes the version out of App Review so its metadata can change again (submit sends it back).
+async function cancel() {
+  const { data } = await api('GET', `/v1/reviewSubmissions?filter[app]=${app}&filter[platform]=IOS&filter[state]=WAITING_FOR_REVIEW,IN_REVIEW,UNRESOLVED_ISSUES`);
+  if (!data.length) console.log('nothing in review');
+  for (const s of data) {
+    await api('PATCH', `/v1/reviewSubmissions/${s.id}`, { data: { type: 'reviewSubmissions', id: s.id, attributes: { canceled: true } } });
+    console.log(`canceled review submission ${s.id} (was ${s.attributes.state})`);
+  }
+  let last = '';
+  for (let i = 0; i < 60; i++) {
+    const v = (await api('GET', `/v1/apps/${app}/appStoreVersions?filter[platform]=IOS&limit=1`)).data[0];
+    if (v.attributes.appStoreState !== last) console.log(`version ${v.attributes.versionString}: ${(last = v.attributes.appStoreState)}`);
+    if (['PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED', 'METADATA_REJECTED'].includes(last)) return;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  throw new Error('the version did not become editable yet; run status in a minute');
+}
+
 async function build(number) {
   const version = await editableVersion();
   const { data } = await api('GET', `/v1/builds?filter[app]=${app}&filter[preReleaseVersion.version]=${store.version}&filter[processingState]=VALID&sort=-uploadedDate&limit=20`);
@@ -242,9 +310,9 @@ async function submit() {
 }
 
 const [command, arg] = process.argv.slice(2);
-const commands = { listing, screenshots, build: () => build(arg), builds, status, submit };
+const commands = { listing, screenshots, header, build: () => build(arg), builds, status, cancel, submit };
 if (!commands[command]) {
-  console.log('usage: node scripts/app-store.mjs listing|screenshots|build [n]|builds|status|submit');
+  console.log('usage: node scripts/app-store.mjs listing|screenshots|header|build [n]|builds|status|cancel|submit');
   process.exit(1);
 }
 commands[command]().catch((e) => {
