@@ -218,6 +218,16 @@ async function status() {
   }
 }
 
+async function builds() {
+  const r = await api('GET', `/v1/builds?filter[app]=${app}&sort=-uploadedDate&limit=5&include=preReleaseVersion,buildBetaDetail&fields[builds]=version,processingState,uploadedDate,preReleaseVersion,buildBetaDetail`);
+  const byId = Object.fromEntries((r.included ?? []).map((i) => [`${i.type}:${i.id}`, i.attributes]));
+  for (const b of r.data) {
+    const pre = byId[`preReleaseVersions:${b.relationships.preReleaseVersion.data?.id}`];
+    const beta = byId[`buildBetaDetails:${b.relationships.buildBetaDetail.data?.id}`];
+    console.log(`${pre?.version ?? '?'} (${b.attributes.version}): ${b.attributes.processingState}, TestFlight ${beta?.internalBuildState ?? '?'}`);
+  }
+}
+
 async function submit() {
   const version = await editableVersion();
   const pending = (await api('GET', `/v1/reviewSubmissions?filter[app]=${app}&filter[platform]=IOS&filter[state]=READY_FOR_REVIEW`)).data[0];
@@ -232,9 +242,9 @@ async function submit() {
 }
 
 const [command, arg] = process.argv.slice(2);
-const commands = { listing, screenshots, build: () => build(arg), status, submit };
+const commands = { listing, screenshots, build: () => build(arg), builds, status, submit };
 if (!commands[command]) {
-  console.log('usage: node scripts/app-store.mjs listing|screenshots|build [n]|status|submit');
+  console.log('usage: node scripts/app-store.mjs listing|screenshots|build [n]|builds|status|submit');
   process.exit(1);
 }
 commands[command]().catch((e) => {

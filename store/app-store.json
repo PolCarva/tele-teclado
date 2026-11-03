@@ -1,6 +1,6 @@
 {
   "appId": "6826423999",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "copyright": "2026 Pablo Carvalho",
   "primaryCategory": "UTILITIES",
   "secondaryCategory": "ENTERTAINMENT",
@@ -21,7 +21,8 @@
           "store/screenshots/iphone-6.9/2-conectar.png",
           "store/screenshots/iphone-6.9/3-vincular.png"
         ]
-      }
+      },
+      "whatsNew": "El texto queda en la caja después de Buscar o Enter, así que podés seguir editando la búsqueda y lo que borrás también se borra en la tele. Y si la caja está vacía, la tecla de borrar igual borra lo que quedó en la tele."
     }
   },
   "review": {
