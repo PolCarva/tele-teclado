@@ -2,6 +2,7 @@
 // answers to several connectors.
 
 import { androidTv } from './androidtv';
+import { fireTv } from './firetv';
 import { lg } from './lg';
 import { panasonic } from './panasonic';
 import { roku } from './roku';
@@ -9,7 +10,7 @@ import { samsung } from './samsung';
 import { sony } from './sony';
 import type { BrandId, Driver } from './types';
 
-export const DRIVERS: Driver[] = [androidTv, samsung, lg, roku, sony, panasonic];
+export const DRIVERS: Driver[] = [androidTv, samsung, lg, roku, sony, panasonic, fireTv];
 
 export function driverFor(brand: BrandId, drivers: Driver[] = DRIVERS): Driver | undefined {
   return drivers.find((d) => d.brand === brand);

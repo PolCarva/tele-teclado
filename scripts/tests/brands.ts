@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { panasonic, pairingKeys, seal, sessionKeys } from '../../src/brands/panasonic';
 import { base64Decode, bytesToHex } from '../../src/protocol/bytes';
 import { fakePanasonic } from './fakes/panasonic';
-import { controllerFor, eventually, memoryStore, remapTransport } from './harness';
+import { controllerFor, eventually, memoryStore, remapTransport, sleep } from './harness';
 
 type Test = (name: string, fn: () => void | Promise<void>) => Promise<void>;
 
@@ -215,6 +215,147 @@ export async function brandTests3(test: Test) {
     tv.submit();
     await eventually(() => assert.ok(fake.state.ircc.length >= 1));
     tv.setActive(false);
+    fake.close();
+  });
+}
+
+export async function brandTests4(test: Test) {
+  const { fireTv } = await import('../../src/brands/firetv');
+  const { discoverTvs, identifyHost } = await import('../../src/brands/discovery');
+  const { fakeFireTv, FAKE_FIRETV_UUID } = await import('./fakes/firetv');
+  const dialReply = (from: string, location: string) => ({
+    host: from,
+    response: `HTTP/1.1 200 OK\r\nST: urn:dial-multiscreen-org:service:dial:1\r\nUSN: uuid:x::urn:dial-multiscreen-org:service:dial:1\r\nLOCATION: ${location}\r\nCACHE-CONTROL: max-age=1800\r\n\r\n`,
+  });
+
+  await test('firetv: DIAL discovery (Amazon AFT only), wake + PIN pairing, draft sent whole once a field opens, no delete or Enter', async () => {
+    const fake = await fakeFireTv({ asleep: true, pin: '4826' });
+    const transport = remapTransport(
+      { '10.0.0.13:8080': fake.port, '10.0.0.13:8009': fake.dialPort, '10.0.0.13:49152': fake.dialPort, '10.0.0.20:8008': fake.dialPort },
+      {
+        ssdp: [
+          dialReply('10.0.0.13', 'http://10.0.0.13:49152/dd.xml'),
+          // A Chromecast also answers DIAL searches: its description isn't Amazon.
+          dialReply('10.0.0.20', 'http://10.0.0.20:8008/other.xml'),
+          // A reply whose description lives on another address is ignored.
+          dialReply('10.0.0.21', 'http://10.0.0.13:49152/dd.xml'),
+        ],
+      },
+    );
+    const { tv, state, store } = controllerFor(transport, [fireTv]);
+    tv.setActive(true);
+    // One TV found: the controller picks it, finds no token and asks the TV for a PIN (waking it first).
+    await eventually(() => assert.equal(state().pairing?.phase, 'waiting_code'), 6000);
+    assert.deepEqual(
+      [state().tv?.brand, state().tv?.host, state().tvName, state().tv?.model, state().tv?.id],
+      ['firetv', '10.0.0.13', 'Fire TV Living', 'AFTMA08C15', FAKE_FIRETV_UUID],
+    );
+    assert.ok(fake.state.wakes >= 1, 'DIAL woke the remote service');
+    assert.equal(fake.state.friendlyName, 'Teclado TV');
+    assert.deepEqual([state().pairing?.prompt?.kind, (state().pairing?.prompt as { length: number }).length], ['code', 4]);
+    await tv.submitCode('0000');
+    assert.equal(state().pairing?.phase, 'waiting_code');
+    assert.match(state().pairing?.error ?? '', /no coincide/);
+    assert.equal(fake.state.pinsShown, 1, 'a wrong PIN keeps the same code on the TV');
+    await tv.submitCode('4826');
+    await eventually(() => assert.equal(state().connection, 'ready'), 5000);
+    const saved = [...store.map.entries()].find(([k]) => k.startsWith('cred:firetv:'));
+    assert.ok(saved && JSON.parse(saved[1]!).token, 'token saved');
+    assert.deepEqual([state().compose, state().canSubmit, state().reportsKeyboard], [true, false, true]);
+    await eventually(() => assert.equal(state().tvKeyboard, false));
+
+    // The box is a draft: typing and deleting stay on the phone.
+    tv.setText('Matrixx');
+    tv.setText('Matrix');
+    await sleep(100);
+    assert.deepEqual(fake.state.textPosts, [], 'nothing typed live');
+    // "Enviar" with no field open on the TV: the text waits (the TV would answer 200 and drop it).
+    tv.submit();
+    await sleep(200);
+    assert.deepEqual([fake.state.textPosts, fake.state.dropped], [[], []]);
+    fake.openKeyboard();
+    await eventually(() => assert.equal(fake.state.field, 'Matrix'), 4000);
+    assert.equal(state().tvKeyboard, true);
+    assert.equal(state().remoteText, null, "the field's text from GET /keyboard is not pulled into the box");
+    // The next draft goes as one more whole string (accents as UTF-8 JSON; unconfirmed on hardware).
+    tv.setText(' 2 ñandú');
+    tv.submit();
+    await eventually(() => assert.equal(fake.state.field, 'Matrix 2 ñandú'));
+    assert.deepEqual(fake.state.textPosts, ['Matrix', ' 2 ñandú'], 'one request per draft, never per letter');
+    // No Enter: nothing is pressed on the TV.
+    tv.pressEnter();
+    await sleep(150);
+    assert.deepEqual(fake.state.keys, []);
+    assert.deepEqual([fake.state.obsolete, fake.state.badRequests], [0, []]);
+    tv.setActive(false);
+
+    // Same phone later: the saved token connects without a PIN.
+    const again = controllerFor(transport, [fireTv], store);
+    again.tv.chooseTv(state().tv!);
+    again.tv.setActive(true);
+    await eventually(() => assert.equal(again.state().connection, 'ready'), 5000);
+    assert.equal(fake.state.pinsShown, 1);
+    // The token stops working (phone removed on the TV): the app asks for a new PIN.
+    fake.revoke();
+    await eventually(() => assert.equal(again.state().pairing?.phase, 'waiting_code'), 6000);
+    assert.equal(fake.state.pinsShown, 2);
+    again.tv.setActive(false);
+    fake.close();
+  });
+
+  await test('firetv: mDNS and by-address discovery, keys, no delete, wakes a sleeping service', async () => {
+    const fake = await fakeFireTv();
+    const transport = remapTransport(
+      { '10.0.0.13:8080': fake.port, '10.0.0.13:8009': fake.dialPort, '10.0.0.13:49152': fake.dialPort },
+      {
+        mdns: [{ type: '_amzn-fireTv._tcp', name: 'Fire TV Cube', host: '10.0.0.14', port: 8080, txt: {} }],
+        ssdp: [dialReply('10.0.0.13', 'http://10.0.0.13:49152/dd.xml')],
+      },
+    );
+    const ctx = { transport, clientName: 'Teclado TV' };
+    const found = await discoverTvs(ctx, [fireTv], { timeoutMs: 300 });
+    assert.deepEqual(
+      found.map((t) => [t.brand, t.host, t.name]),
+      [
+        ['firetv', '10.0.0.14', 'Fire TV Cube'],
+        ['firetv', '10.0.0.13', 'Fire TV Living'],
+      ],
+    );
+    // Typed address: DIAL's port is open, and the description says Amazon.
+    assert.equal((await identifyHost(ctx, [fireTv], '10.0.0.13'))?.brand, 'firetv');
+
+    // Pair straight through the connector.
+    const flow = await fireTv.startPairing!({ brand: 'firetv', host: '10.0.0.13', name: 'Fire TV' }, ctx);
+    const credentials = await flow.submit!('4826');
+    const keyboards: boolean[] = [];
+    const closes: string[] = [];
+    const { session } = await fireTv.connect(
+      { brand: 'firetv', host: '10.0.0.13', name: 'Fire TV' },
+      credentials,
+      { onClose: (reason) => closes.push(reason), onKeyboard: (k) => keyboards.push(k.visible) },
+      ctx,
+    );
+    // Remote keys from the sources: D-pad/Select as keyDown + keyUp, Home/Back as a plain press.
+    session.sendKey!('enter');
+    session.sendKey!('up');
+    session.sendKey!('home');
+    await eventually(() => assert.deepEqual(fake.state.keys, ['select:keyDown', 'select:keyUp', 'dpad_up:keyDown', 'dpad_up:keyUp', 'home']));
+    session.submit();
+    // Deleting can't reach the TV: nothing is sent.
+    session.updateText('abc', 'ab');
+    await sleep(150);
+    assert.equal(fake.state.keys.length, 5);
+    assert.deepEqual(fake.state.textPosts, []);
+    // The service went to sleep: the next request wakes it through DIAL and goes through.
+    fake.openKeyboard();
+    const wakes = fake.state.wakes;
+    await fake.sleepService();
+    session.updateText('', 'hola');
+    await eventually(() => assert.equal(fake.state.field, 'hola'), 6000);
+    assert.ok(fake.state.wakes > wakes, 'woken again');
+    assert.deepEqual(closes, []);
+    assert.equal(keyboards.at(-1), true);
+    session.close();
     fake.close();
   });
 }
