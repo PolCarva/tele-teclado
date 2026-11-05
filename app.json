@@ -15,6 +15,7 @@
         "NSBonjourServices": [
           "_androidtvremote2._tcp",
           "_samsungmsf._tcp",
+          "_amzn-fireTv._tcp",
           "_googlecast._tcp",
           "_airplay._tcp"
         ],

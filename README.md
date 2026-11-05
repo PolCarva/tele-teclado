@@ -9,9 +9,10 @@ Habla directo con la tele por la Wi-Fi, usando el protocolo de cada marca. Funci
 - **LG** (webOS, 2014 en adelante): escribe en el campo de texto abierto. Probada con una LG real.
 - **Roku** (incluye teles Roku de TCL, Hisense, Sharp…): escribe letra por letra en el campo abierto.
 - **Sony BRAVIA** sin Android (2013–2015) y como respaldo en las Android: escribe cuando la tele tiene su teclado abierto.
-- **Panasonic VIERA** con el sistema propio de Panasonic (2011 en adelante, con o sin cifrado): manda el texto completo de una vez. Las Panasonic con Android TV / Google TV funcionan como Android TV; las que traen Fire TV o TiVo (la mayoría desde 2024) no son compatibles.
+- **Panasonic VIERA** con el sistema propio de Panasonic (2011 en adelante, con o sin cifrado): manda el texto completo de una vez. Las Panasonic con Android TV / Google TV funcionan como Android TV. Las que traen Fire TV o TiVo (la mayoría desde 2024) no tienen el sistema de Panasonic: las de Fire TV podrían andar como Fire TV (sin confirmar en esas teles) y las de TiVo no son compatibles.
+- **Amazon Fire TV** (Fire TV Stick, Fire TV Cube): manda el texto completo de una vez cuando la tele muestra su teclado. **No se probó acá con un equipo real:** se armó con la documentación de un proyecto abierto (LibreControl/fire-tv) cuyo mantenedor lo vio escribir en un solo equipo, un Fire TV Stick 4K Plus, y solo texto sin tildes. Las tildes, el borrado y las teles con Fire TV integrado (Fire TV Edition, como las Panasonic con Fire TV) no están confirmados.
 
-No necesita la Mac prendida ni nada instalado en la tele. Las marcas se agregaron en base a la documentación de cada protocolo y a proyectos de código abierto, y todas se prueban contra teles simuladas armadas desde esas fuentes. Con teles reales se probaron TCL (Android TV), Samsung y LG (noviembre de 2026), y en las tres el texto llegó bien; Roku, Sony y Panasonic todavía no.
+No necesita la Mac prendida ni nada instalado en la tele. Las marcas se agregaron en base a la documentación de cada protocolo y a proyectos de código abierto, y todas se prueban contra teles simuladas armadas desde esas fuentes. Con teles reales se probaron TCL (Android TV), Samsung y LG (noviembre de 2026), y en las tres el texto llegó bien; Roku, Sony, Panasonic y Fire TV todavía no.
 
 ## Cómo se usa
 
@@ -21,14 +22,15 @@ No necesita la Mac prendida ni nada instalado en la tele. Las marcas se agregaro
   - **Android TV:** aparece el selector "Buscar en" con íconos (YouTube, Netflix, Prime Video, Disney+, HBO Max, Stremio, o "App abierta (Enter)"). Sigue sola a la app abierta en la tele; podés cambiarla a mano. El texto aparece en vivo mientras escribís.
   - **Samsung, LG, Roku, Sony:** abrí un buscador o un campo de texto en la tele (por ejemplo la búsqueda de la tele o el navegador; en Samsung, YouTube, Netflix y Prime Video usan su propio teclado y ahí el texto no llega). Cuando la tele muestra su teclado, lo que escribís aparece ahí al instante. En Samsung, LG y Sony, si el campo ya tenía texto, la app lo trae y seguís editando.
   - **Panasonic:** no deja borrar desde el celular, así que escribís en el celular y tocás **Enviar**: el texto va completo. "Enter" confirma.
-- **Tildes y ñ:** algunas apps de Android (YouTube, HBO Max, Netflix) las descartan; ahí la app manda la letra sin tilde. En los enlaces de búsqueda y en las demás marcas las tildes sí van.
+  - **Fire TV:** igual que Panasonic, escribís en el celular y tocás **Enviar**. Si la tele todavía no muestra su teclado, el texto espera (hasta un minuto) a que abras un buscador o un campo de texto. No hay botón Enter, porque no se conoce un comando para eso: para buscar, usá el control. Las apps con teclado propio, como Netflix, no reciben el texto.
+- **Tildes y ñ:** algunas apps de Android (YouTube, HBO Max, Netflix) las descartan; ahí la app manda la letra sin tilde. En los enlaces de búsqueda y en las demás marcas las tildes sí van (en Fire TV la app las manda, pero no está confirmado que lleguen).
 
 ## Vincular con la tele (una sola vez por celular)
 
 La primera vez, cada marca pide algo distinto. La app te guía:
 
 - **Android TV:** la tele muestra un código de 6 caracteres (números y letras A–F). Escribilo en las seis casillas.
-- **Sony / Panasonic (con cifrado) :** la tele muestra un código de 4 números. Escribilo. En Sony, si no aparece, activá en la tele el control remoto por red.
+- **Sony / Panasonic (con cifrado) / Fire TV:** la tele muestra un código de 4 números. Escribilo. En Sony, si no aparece, activá en la tele el control remoto por red.
 - **Samsung / LG:** la tele pregunta "¿permitir este dispositivo?". Elegí **Permitir** (Sí) con el control de la tele.
 - **Roku:** no hace falta vincular, pero el control por red tiene que estar activado en la tele: **Ajustes → Sistema → Ajustes avanzados del sistema → Control por apps móviles → Activado**. Si está en "Limitado", la app te lo avisa.
 
@@ -62,7 +64,7 @@ Es una app de Expo (SDK 58). Partes:
 
 - `src/protocol/`: el protocolo Android TV Remote v2 en TypeScript (vinculación, sesión, mensajes protobuf, diferencias de texto). Lo comparten la app y la herramienta de la Mac.
 - `src/net/`: las piezas de red compartidas sobre sockets crudos: HTTP/1.1, WebSocket (RFC 6455), MQTT, SHA-1/MD5/HMAC, AES-128-CBC y un parser de URL. Así las marcas que usan TLS con certificados propios, WebSockets o MQTT funcionan igual en Android y iPhone, sin chocar con las políticas de tráfico de cada sistema.
-- `src/brands/`: un conector por marca (`androidtv`, `samsung`, `lg`, `roku`, `sony`, `panasonic`) detrás de una interfaz común (`Driver`/`TvSession`), más el descubrimiento multi-marca (mDNS, SSDP y sondeo de puertos) en `discovery.ts`.
+- `src/brands/`: un conector por marca (`androidtv`, `samsung`, `lg`, `roku`, `sony`, `panasonic`, `firetv`) detrás de una interfaz común (`Driver`/`TvSession`), más el descubrimiento multi-marca (mDNS, SSDP y sondeo de puertos) en `discovery.ts`.
 - `src/tv/TvController.ts`: busca y recuerda la tele, mantiene la conexión, pide vincular, espeja la caja de texto en la tele y hace las búsquedas. No conoce ningún protocolo: habla con el conector de la marca.
 - `src/tv/apps.ts`: las apps del selector de Android TV y el enlace de búsqueda de cada una.
 - `modules/tv-remote/`: módulo nativo con lo que JavaScript no puede hacer solo: el certificado del celular, abrir sockets (TCP, TLS, o TLS con ese certificado), buscar teles (mDNS/Bonjour, SSDP, sondeo de puertos), datos de la red Wi-Fi y bytes aleatorios. Android en Kotlin, iPhone en Swift.
@@ -109,5 +111,6 @@ Lo de las demás marcas viene de la investigación de protocolos (resumida en lo
 - **Samsung / LG:** si el campo reemplaza o inserta el texto puede cambiar según el año; la app usa el modo que indica cada protocolo y se sincroniza con lo que la tele informa de su teclado. Apps con teclado propio (a veces YouTube/Netflix) no levantan el teclado del sistema; ahí la escritura no llega.
 - **Sony / Panasonic:** si las tildes llegan intactas no está confirmado en todos los modelos.
 - **Roku:** la escritura necesita el modo "Activado"; en "Limitado" (el valor por defecto en varios modelos nuevos) la app avisa que hay que cambiar el ajuste.
+- **Fire TV:** no se probó acá con un equipo real. Un solo mantenedor (LibreControl/fire-tv) vio llegar texto sin tildes a un Fire TV Stick 4K Plus. Falta confirmar si el texto se agrega o reemplaza lo que ya tiene el campo, si pasan tildes y ñ, y si anda en las teles Fire TV Edition. No hay forma conocida de borrar ni de apretar Enter desde el celular. La tele contesta "OK" aunque el texto no llegue, así que la app solo lo manda cuando la tele dice que tiene un campo de texto abierto. Antes de vincular y de conectarse, la app despierta el servicio de la tele (DIAL, puerto 8009).
 
-No se incluyeron (todavía) Hisense VIDAA, Fire TV, Apple TV, Vizio ni las Philips sin Android, para no prometer una escritura que podría no funcionar: en `research/otras-plataformas.md` está qué se sabe de cada una y qué prueba con una tele real las destrabaría.
+No se incluyeron (todavía) Hisense VIDAA, Apple TV, Vizio ni las Philips sin Android, para no prometer una escritura que podría no funcionar: en `research/otras-plataformas.md` está qué se sabe de cada una y qué prueba con una tele real las destrabaría.

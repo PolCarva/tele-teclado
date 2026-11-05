@@ -172,8 +172,13 @@ function hintFor(state: TvState): string {
   if (state.connection === 'offline') {
     return `No encuentro ${state.tvName || 'la tele'}. Fijate que esté prendida y en la misma Wi-Fi.`;
   }
+  if (state.compose && state.tv?.brand === 'firetv' && state.tvKeyboard === false) {
+    // Fire TV says when a text field is open; "Enviar" waits for one. Netflix's search reports none (LibreControl/fire-tv).
+    return 'Abrí la búsqueda del Fire TV o un campo de texto: lo que mandes con «Enviar» aparece cuando la tele muestre su teclado. Algunas apps, como Netflix, usan su propio teclado y no reciben texto.';
+  }
   if (state.compose) {
-    return `Abrí un buscador o un campo de texto en la tele. Escribí acá y tocá «Enviar»: ${state.brandLabel || 'esta tele'} no deja borrar desde el celular, así que el texto va completo de una vez.`;
+    const search = state.canSubmit ? '' : ' Para buscar, usá el control de la tele.';
+    return `Abrí un buscador o un campo de texto en la tele. Escribí acá y tocá «Enviar»: ${state.brandLabel || 'esta tele'} no deja borrar desde el celular, así que el texto va completo de una vez.${search}`;
   }
   if (state.tv?.brand === 'samsung' && state.tvKeyboard !== true) {
     // On Samsung, YouTube, Netflix and Prime Video draw their own keyboard, which ignores remote text.
