@@ -47,12 +47,22 @@ async function api(method, path, body) {
 }
 
 const ref = (type, id) => ({ data: { type, id } });
+
+class AlreadySubmitted extends Error {
+  constructor(version) {
+    const { versionString, appStoreState } = version.attributes;
+    super(`version ${versionString} is already ${appStoreState}: nothing to edit or submit (bump expo.version and store.version for a new one)`);
+  }
+}
 const app = store.appId;
 
 async function editableVersion() {
   const { data } = await api('GET', `/v1/apps/${app}/appStoreVersions?filter[platform]=IOS&limit=10`);
   const open = data.find((v) => ['PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED', 'METADATA_REJECTED', 'INVALID_BINARY'].includes(v.attributes.appStoreState));
   if (open) return open;
+  // store.version already went to review or is out: there is nothing to edit (Apple won't reuse the number).
+  const same = data.find((v) => v.attributes.versionString === store.version);
+  if (same) throw new AlreadySubmitted(same);
   const created = await api('POST', '/v1/appStoreVersions', {
     data: { type: 'appStoreVersions', attributes: { platform: 'IOS', versionString: store.version }, relationships: { app: ref('apps', app) } },
   });
