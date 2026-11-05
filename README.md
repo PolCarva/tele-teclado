@@ -5,13 +5,13 @@ App para el celular (Android y iPhone): escribís en una caja de texto y aparece
 Habla directo con la tele por la Wi-Fi, usando el protocolo de cada marca. Funciona con varias marcas:
 
 - **Android TV / Google TV** (TCL, Sony, Philips, Xiaomi, Sharp, Hisense, Chromecast con Google TV, Nvidia Shield…): escribe en vivo y además puede abrir la búsqueda de YouTube, Netflix, Prime Video, Disney+, HBO Max o Stremio. Probada con una TCL Android TV 11, desde la Mac y desde la app de iPhone (vinculación con código, YouTube detectado y búsqueda).
-- **Samsung** (Tizen, 2016 en adelante): escribe cuando la tele tiene abierto su teclado.
-- **LG** (webOS, 2014 en adelante): escribe en el campo de texto abierto.
+- **Samsung** (Tizen, 2016 en adelante): escribe cuando la tele tiene abierto su teclado. Probada con una Samsung real.
+- **LG** (webOS, 2014 en adelante): escribe en el campo de texto abierto. Probada con una LG real.
 - **Roku** (incluye teles Roku de TCL, Hisense, Sharp…): escribe letra por letra en el campo abierto.
 - **Sony BRAVIA** sin Android (2013–2015) y como respaldo en las Android: escribe cuando la tele tiene su teclado abierto.
 - **Panasonic VIERA** con el sistema propio de Panasonic (2011 en adelante, con o sin cifrado): manda el texto completo de una vez. Las Panasonic con Android TV / Google TV funcionan como Android TV; las que traen Fire TV o TiVo (la mayoría desde 2024) no son compatibles.
 
-No necesita la Mac prendida ni nada instalado en la tele. Las marcas que no son Android TV se agregaron en base a la documentación de cada protocolo y a proyectos de código abierto; se probaron contra teles simuladas armadas desde esas fuentes, pero no contra cada modelo real.
+No necesita la Mac prendida ni nada instalado en la tele. Las marcas se agregaron en base a la documentación de cada protocolo y a proyectos de código abierto, y todas se prueban contra teles simuladas armadas desde esas fuentes. Con teles reales se probaron TCL (Android TV), Samsung y LG (noviembre de 2026), y en las tres el texto llegó bien; Roku, Sony y Panasonic todavía no.
 
 ## Cómo se usa
 
@@ -104,9 +104,9 @@ Para el simulador, compilar con el equipo de Apple (`DEVELOPMENT_TEAM=JZ9HBXGNK9
 
 Lo del Android TV (probado con la TCL) sigue igual que antes: al conectarse, la tele cambia a su "teclado puente" en ~0,2 s (la app espera 0,7 s), el texto se inserta en el cursor, YouTube/Max/Netflix descartan tildes, Enter en YouTube aprieta la tecla marcada (por eso "Buscar" usa un enlace), y los enlaces de búsqueda por app están en `src/tv/apps.ts`.
 
-Lo de las demás marcas viene de la investigación de protocolos (resumida en los comentarios de cada archivo de `src/brands/`). Puntos que todavía no se pudieron probar contra un modelo real, y que la app maneja con cuidado:
+Lo de las demás marcas viene de la investigación de protocolos (resumida en los comentarios de cada archivo de `src/brands/`). Samsung y LG ya se probaron con una tele real de cada una; lo de abajo son puntos que todavía no se confirmaron en todos los modelos, y que la app maneja con cuidado:
 
-- **Samsung / LG:** si el campo reemplaza o inserta el texto está confirmado solo en algunos años; la app usa el modo que indica cada protocolo y se sincroniza con lo que la tele informa de su teclado. Apps con teclado propio (a veces YouTube/Netflix) no levantan el teclado del sistema; ahí la escritura no llega.
+- **Samsung / LG:** si el campo reemplaza o inserta el texto puede cambiar según el año; la app usa el modo que indica cada protocolo y se sincroniza con lo que la tele informa de su teclado. Apps con teclado propio (a veces YouTube/Netflix) no levantan el teclado del sistema; ahí la escritura no llega.
 - **Sony / Panasonic:** si las tildes llegan intactas no está confirmado en todos los modelos.
 - **Roku:** la escritura necesita el modo "Activado"; en "Limitado" (el valor por defecto en varios modelos nuevos) la app avisa que hay que cambiar el ajuste.
 
