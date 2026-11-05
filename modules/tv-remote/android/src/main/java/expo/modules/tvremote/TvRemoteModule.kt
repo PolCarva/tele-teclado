@@ -19,6 +19,7 @@ import kotlin.concurrent.thread
  * - byte streams to the TV: plain TCP, TLS, or TLS presenting that certificate,
  * - finding TVs on the Wi-Fi (mDNS, SSDP, port probe) and the phone's own address,
  * - secure random bytes and a tiny key/value store for settings.
+ * - the installed version and Google Play's in-app updates (see PlayUpdates).
  * The protocols themselves (HTTP, WebSocket, MQTT and each brand) live in TypeScript.
  */
 class TvRemoteModule : Module() {
@@ -146,6 +147,31 @@ class TvRemoteModule : Module() {
         if (value == null) remove(key) else putString(key, value)
       }.apply()
       Unit
+    }
+
+    Function("appInfo") {
+      PlayUpdates.appInfo(context)
+    }
+
+    AsyncFunction("playUpdateInfo") { promise: Promise ->
+      PlayUpdates.check(context, { promise.resolve(it) }) { e ->
+        promise.reject("ERR_PLAY_UPDATE", e.message ?: "play update", e)
+      }
+    }
+
+    AsyncFunction("startPlayUpdate") { promise: Promise ->
+      val activity = appContext.currentActivity
+      if (activity == null) {
+        promise.reject("ERR_PLAY_UPDATE", "no activity", null)
+        return@AsyncFunction
+      }
+      PlayUpdates.start(context, activity, { promise.resolve(it) }) { e ->
+        promise.reject("ERR_PLAY_UPDATE", e.message ?: "play update", e)
+      }
+    }
+
+    OnActivityEntersForeground {
+      PlayUpdates.resumeIfStalled(context, appContext.currentActivity)
     }
 
     OnDestroy {

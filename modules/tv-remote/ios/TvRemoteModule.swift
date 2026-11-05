@@ -5,7 +5,8 @@ import Security
 /// Native side of the TV remote on iPhone (same functions as the Android module):
 /// this phone's certificate; byte streams to the TV (plain TCP, TLS, or TLS presenting that
 /// certificate); finding TVs on the Wi-Fi (Bonjour, SSDP, port probe) and the phone's own address;
-/// secure random bytes and a tiny key/value store. The protocols themselves live in TypeScript.
+/// secure random bytes, a tiny key/value store, and the installed version (the Google Play update
+/// functions exist only so both sides match: there is no Play on iPhone). The protocols live in TypeScript.
 public class TvRemoteModule: Module {
   private let queue = DispatchQueue(label: "tele-teclado.tv-remote")
   private let lock = NSLock()
@@ -113,6 +114,24 @@ public class TvRemoteModule: Module {
 
     Function("setSetting") { (key: String, value: String?) in
       UserDefaults.standard.set(value, forKey: "tele-teclado.\(key)")
+    }
+
+    Function("appInfo") { () -> [String: Any] in
+      let info = Bundle.main.infoDictionary ?? [:]
+      var result: [String: Any] = [
+        "version": info["CFBundleShortVersionString"] as? String ?? "",
+        "build": info["CFBundleVersion"] as? String ?? "",
+      ]
+      if let region = Locale.current.region?.identifier { result["region"] = region }
+      return result
+    }
+
+    AsyncFunction("playUpdateInfo") { () -> [String: Any] in
+      ["available": false, "versionCode": 0]
+    }
+
+    AsyncFunction("startPlayUpdate") { () throws -> Int in
+      throw Exception(name: "PlayUpdateUnavailable", description: "Google Play updates exist only on Android", code: "ERR_PLAY_UPDATE")
     }
 
     OnDestroy {

@@ -16,3 +16,8 @@ android {
     abortOnError false
   }
 }
+
+dependencies {
+  // Google Play in-app updates; 2.1.0 is the latest and is required for apps targeting Android 14+.
+  implementation 'com.google.android.play:app-update:2.1.0'
+}

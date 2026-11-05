@@ -42,6 +42,22 @@ declare class TvRemoteModule extends NativeModule<TvRemoteEvents> {
   randomBytes(count: number): string;
   getSetting(key: string): string | null;
   setSetting(key: string, value: string | null): void;
+  /**
+   * The installed version and build, the package that installed the app (Android only, e.g.
+   * com.android.vending for Google Play; null for adb, missing on iOS) and the phone's region
+   * (two letters, may be missing).
+   */
+  appInfo(): { version: string; build: string; installer?: string | null; region?: string | null };
+  /**
+   * Android installed from Google Play: whether Play can install an update now (rejects when the app
+   * did not come from Play). iOS: never available.
+   */
+  playUpdateInfo(): Promise<{ available: boolean; versionCode: number }>;
+  /**
+   * Android: opens Google Play's full-screen update. Resolves with its result code: -1 accepted (Play
+   * then installs it and restarts the app), 0 cancelled, 1 failed. Rejects on iOS.
+   */
+  startPlayUpdate(): Promise<number>;
 }
 
 export default requireNativeModule<TvRemoteModule>('TvRemote');

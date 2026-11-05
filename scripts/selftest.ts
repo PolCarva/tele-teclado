@@ -18,6 +18,7 @@ import { resilienceTests } from './tests/resilience';
 import { samsungRealTests } from './tests/samsungReal';
 import { realReportsTests } from './tests/realReports';
 import { sonyRealTests } from './tests/sonyReal';
+import { updateTests } from './tests/update';
 
 let passed = 0;
 function test(name: string, fn: () => void) {
@@ -310,6 +311,7 @@ async function main() {
   await samsungRealTests(asyncTest);
   await sonyRealTests(asyncTest);
   await realReportsTests(asyncTest);
+  await updateTests(asyncTest);
   console.log(`\n${passed} tests passed`);
   process.exit(0);
 }

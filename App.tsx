@@ -5,6 +5,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 
 import type { TvState } from './src/tv/TvController';
 import { tv, useTv } from './src/tv/useTv';
+import { useUpdate } from './src/update/useUpdate';
 import { Backdrop } from './src/ui/Backdrop';
 import { Icon } from './src/ui/Icon';
 import { ManualAddress } from './src/ui/ManualAddress';
@@ -13,6 +14,7 @@ import { PrivacyLink } from './src/ui/PrivacyLink';
 import { TvList } from './src/ui/TvList';
 import { TvSheet } from './src/ui/TvSheet';
 import { TypingView } from './src/ui/TypingView';
+import { UpdateBanner } from './src/ui/UpdateBanner';
 import { colors, radius, type } from './src/ui/theme';
 
 export default function App() {
@@ -28,6 +30,7 @@ function Main() {
   const state = useTv();
   const insets = useSafeAreaInsets();
   const [tvSheet, setTvSheet] = useState(false);
+  const { update, install, later } = useUpdate();
 
   return (
     <View style={styles.root}>
@@ -37,6 +40,7 @@ function Main() {
           contentContainerStyle={[styles.content, { paddingTop: insets.top + 14, paddingBottom: insets.bottom + 24 }]}
           keyboardShouldPersistTaps="handled"
         >
+          {update ? <UpdateBanner update={update} onInstall={install} onLater={later} /> : null}
           {state.needsTv ? (
             <ChooseTv state={state} />
           ) : (
@@ -98,7 +102,7 @@ function ChooseTv({ state }: { state: TvState }) {
         <Text style={styles.subtitle}>
           {found
             ? 'Estas son las teles que encontré en tu Wi-Fi.'
-            : 'Escribí en la tele con el teclado del celular. Busco tu tele en la Wi-Fi: Android TV / Google TV, Samsung, LG, Roku, Sony o Panasonic.'}
+            : 'Escribí en la tele con el teclado del celular. Busco tu tele en la Wi-Fi: Android TV / Google TV, Samsung, LG, Roku, Sony, Panasonic o Fire TV.'}
         </Text>
       </View>
       <TvList state={state} onChoose={(chosen) => tv.chooseTv(chosen)} onRescan={() => void tv.scanTvs({ deep: true })} />

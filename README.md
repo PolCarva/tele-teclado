@@ -38,7 +38,7 @@ Queda vinculada; no hay que repetirlo salvo que borres la app o resetees la tele
 
 ## Instalar
 
-**iPhone:** en la App Store (enviada a revisión de Apple; mientras tanto, por **TestFlight**). La primera vez iOS pide permiso para buscar dispositivos en la red local: hay que aceptarlo.
+**iPhone:** en la [App Store](https://apps.apple.com/app/id6826423999). La primera vez iOS pide permiso para buscar dispositivos en la red local: hay que aceptarlo.
 
 **Android:** el instalador está en las [releases del repositorio](https://github.com/PolCarva/tele-teclado/releases) (`Teclado-TV.apk`). Localmente queda en `dist/Teclado-TV.apk`.
 
@@ -50,6 +50,8 @@ Queda vinculada; no hay que repetirlo salvo que borres la app o resetees la tele
 ```
 
 Reinstalar encima de una versión anterior conserva la vinculación.
+
+**Versiones nuevas:** la App Store y Google Play actualizan la app solas si el celular tiene prendidas las actualizaciones automáticas. Además, la app pregunta una vez por día si salió una versión nueva y, si salió, muestra un aviso con **Actualizar**: en iPhone abre la App Store; en Android instalada desde Google Play, Play la actualiza sin salir de la app; con el APK, baja el nuevo de las releases. **Ahora no** esconde el aviso una semana. El aviso llega a partir de la versión que lo trae (las anteriores no lo tienen).
 
 ## Si algo no anda
 
@@ -67,7 +69,8 @@ Es una app de Expo (SDK 58). Partes:
 - `src/brands/`: un conector por marca (`androidtv`, `samsung`, `lg`, `roku`, `sony`, `panasonic`, `firetv`) detrás de una interfaz común (`Driver`/`TvSession`), más el descubrimiento multi-marca (mDNS, SSDP y sondeo de puertos) en `discovery.ts`.
 - `src/tv/TvController.ts`: busca y recuerda la tele, mantiene la conexión, pide vincular, espeja la caja de texto en la tele y hace las búsquedas. No conoce ningún protocolo: habla con el conector de la marca.
 - `src/tv/apps.ts`: las apps del selector de Android TV y el enlace de búsqueda de cada una.
-- `modules/tv-remote/`: módulo nativo con lo que JavaScript no puede hacer solo: el certificado del celular, abrir sockets (TCP, TLS, o TLS con ese certificado), buscar teles (mDNS/Bonjour, SSDP, sondeo de puertos), datos de la red Wi-Fi y bytes aleatorios. Android en Kotlin, iPhone en Swift.
+- `src/update/`: el aviso de versión nueva (App Store, Google Play o la última release de GitHub, según de dónde se instaló la app; una consulta por día como máximo).
+- `modules/tv-remote/`: módulo nativo con lo que JavaScript no puede hacer solo: el certificado del celular, abrir sockets (TCP, TLS, o TLS con ese certificado), buscar teles (mDNS/Bonjour, SSDP, sondeo de puertos), datos de la red Wi-Fi, bytes aleatorios, la versión instalada y las actualizaciones de Google Play. Android en Kotlin, iPhone en Swift.
 - `App.tsx` y `src/ui/`: las pantallas (estilo Google TV: fondo oscuro, foco blanco).
 
 Comandos:
@@ -76,7 +79,7 @@ Comandos:
 npm run selftest
 ```
 
-Pruebas sin tele: SHA-256/SHA-1/MD5/HMAC y AES contra `node:crypto`, protobuf contra bytes de la librería de referencia, los clientes HTTP/WebSocket/MQTT contra servidores reales (`node:http`, el paquete `ws`, el broker `aedes`), el cifrado de Panasonic contra sus vectores publicados, y cada conector de marca contra una tele simulada armada desde las fuentes del protocolo (vinculación, detección del teclado, escritura, borrado, Enter).
+Pruebas sin tele: SHA-256/SHA-1/MD5/HMAC y AES contra `node:crypto`, protobuf contra bytes de la librería de referencia, los clientes HTTP/WebSocket/MQTT contra servidores reales (`node:http`, el paquete `ws`, el broker `aedes`), el cifrado de Panasonic contra sus vectores publicados, cada conector de marca contra una tele simulada armada desde las fuentes del protocolo (vinculación, detección del teclado, escritura, borrado, Enter), y el aviso de versión nueva contra respuestas de la App Store y de GitHub. Para ver el aviso en desarrollo: `EXPO_PUBLIC_UPDATE_TEST_VERSION=1.0.0 npx expo start` (la app hace de cuenta que es la 1.0.0).
 
 ```bash
 npm run tv -- type "hola mundo"
