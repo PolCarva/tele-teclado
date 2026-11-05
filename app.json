@@ -2,7 +2,7 @@
   "expo": {
     "name": "Teclado TV",
     "slug": "tele-teclado",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -29,11 +29,11 @@
           "es"
         ]
       },
-      "buildNumber": "6"
+      "buildNumber": "7"
     },
     "android": {
       "package": "com.pablocarvalho.tecladotv",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#2F6BFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
